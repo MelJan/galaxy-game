@@ -1,0 +1,656 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #02030a;
+}
+
+/* Interne Auflösung ist niedrig, hochskaliert wird ohne Weichzeichnen */
+#app canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  image-rendering: pixelated;
+}
+
+#hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  font-family: 'Press Start 2P', monospace;
+  color: #bff6ff;
+  text-shadow: 2px 2px 0 #0b0a1a;
+}
+
+.hud-top {
+  display: flex;
+  justify-content: space-between;
+  padding: 18px 24px;
+  font-size: 14px;
+}
+
+.hud-top b {
+  color: #ffd84a;
+  margin-left: 8px;
+}
+
+.hud-left,
+.hud-right {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hud-right {
+  align-items: flex-end;
+}
+
+.hull-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+}
+
+#hull {
+  display: flex;
+  gap: 3px;
+}
+
+#hull i {
+  display: block;
+  width: 14px;
+  height: 8px;
+  background: #35e6ff;
+  box-shadow: 2px 2px 0 #0b0a1a;
+}
+
+#hull i.empty {
+  background: #2a3150;
+}
+
+#hull.critical i:not(.empty) {
+  background: #ff4a5a;
+  animation: blink 0.5s steps(1) infinite;
+}
+
+#powerups {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 46vw;
+  gap: 6px 14px;
+  font-size: 9px;
+}
+
+.pu-shield {
+  color: #5af0ff;
+}
+
+.pu-fan {
+  color: #ffa83a;
+}
+
+.pu-laser {
+  color: #ff6af0;
+}
+
+.pu-missile {
+  color: #a8ff4a;
+}
+
+.pu-option {
+  color: #ffe24a;
+}
+
+#audio {
+  font-size: 9px;
+  color: #ff9ad0;
+}
+
+#banner {
+  position: absolute;
+  top: 34%;
+  width: 100%;
+  text-align: center;
+  font-size: 32px;
+  color: #fff;
+  animation: banner-in 0.4s steps(4);
+}
+
+#bossbar {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(420px, 40vw);
+  text-align: center;
+  font-size: 10px;
+  color: #ff9ad0;
+}
+
+.bossbar-track {
+  margin-top: 6px;
+  height: 8px;
+  background: #2a1030;
+  box-shadow: 2px 2px 0 #0b0a1a;
+}
+
+#bossfill {
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(#ff6a8a, #c0204a);
+  transition: width 0.15s steps(3);
+}
+
+#banner.warn {
+  color: #ff4a5a;
+  animation: blink 0.4s steps(1) infinite;
+}
+
+#flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+}
+
+#flash.active {
+  animation: flash 0.9s ease-out;
+}
+
+@keyframes flash {
+  from {
+    opacity: 0.95;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+#banner small {
+  display: block;
+  margin-top: 14px;
+  font-size: 12px;
+  color: #ffd84a;
+}
+
+@keyframes banner-in {
+  from {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+/* Titelbildschirm */
+#title {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 16px;
+  background: radial-gradient(ellipse at center, rgba(4, 4, 18, 0.35), rgba(4, 4, 18, 0.85));
+  pointer-events: auto;
+}
+
+#title.hidden {
+  display: none;
+}
+
+.title-logo {
+  font-size: clamp(32px, 7vw, 64px);
+  line-height: 1.15;
+  text-align: center;
+  color: #5af0ff;
+  text-shadow: 4px 4px 0 #0b0a1a, 0 0 24px rgba(90, 240, 255, 0.5);
+  margin-bottom: 12px;
+}
+
+.title-label {
+  font-size: 11px;
+  color: #9ab8e0;
+}
+
+#title-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(560px, 100%);
+}
+
+#title .difficulty {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  padding: 12px 16px;
+  font-family: inherit;
+  color: inherit;
+  text-shadow: inherit;
+  background: rgba(13, 16, 48, 0.85);
+  border: 2px solid #2a3150;
+  cursor: pointer;
+}
+
+#title .difficulty .name {
+  font-size: 13px;
+  color: var(--accent);
+}
+
+#title .difficulty .desc {
+  font-size: 7px;
+  color: #6a7ab0;
+  text-align: right;
+}
+
+#title .difficulty.selected {
+  border-color: var(--accent);
+  background: rgba(26, 36, 88, 0.95);
+  box-shadow: 0 0 0 2px #0b0a1a, 0 0 16px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+#title .difficulty.selected .desc {
+  color: #dfe8ff;
+}
+
+#title .difficulty.selected .name::before {
+  content: '> ';
+}
+
+.title-hint {
+  margin-top: 6px;
+  font-size: 9px;
+  animation: blink 1.2s steps(1) infinite;
+}
+
+#difficulty {
+  font-size: 9px;
+}
+
+#gameover .go-sub {
+  font-size: 9px;
+  color: #9ab8e0;
+}
+
+/* Werft */
+#shop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(4, 4, 18, 0.78);
+  pointer-events: auto;
+}
+
+/* Die ID-Regel oben setzt display: flex, das würde .hidden sonst überstimmen */
+#shop.hidden {
+  display: none;
+}
+
+.shop-panel {
+  width: min(960px, 100%);
+  padding: 20px 22px;
+  background: #0d1030;
+  border: 3px solid #2a3150;
+  box-shadow: 6px 6px 0 #05061a;
+}
+
+.shop-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 16px;
+}
+
+.shop-title {
+  font-size: 28px;
+  color: #ffd84a;
+}
+
+.shop-stats {
+  display: flex;
+  gap: 24px;
+  font-size: 12px;
+}
+
+.shop-stats b {
+  color: #fff;
+  margin-left: 6px;
+}
+
+#shop-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+#shop .card,
+#shop-continue {
+  font-family: inherit;
+  color: inherit;
+  background: #141a40;
+  border: 2px solid #2a3150;
+  cursor: pointer;
+  text-shadow: inherit;
+}
+
+#shop .card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 6px 10px;
+  min-height: 170px;
+}
+
+#shop .card .icon {
+  image-rendering: pixelated;
+}
+
+#shop .card .name {
+  font-size: 9px;
+  color: #fff;
+}
+
+#shop .card .pips {
+  display: flex;
+  gap: 3px;
+  min-height: 6px;
+}
+
+#shop .card .pips i {
+  width: 10px;
+  height: 6px;
+  background: #2a3150;
+}
+
+#shop .card .pips i.on {
+  background: #5af0ff;
+}
+
+#shop .card .effect {
+  font-size: 7px;
+  line-height: 1.6;
+  color: #9ab8e0;
+  flex: 1;
+}
+
+#shop .card .price {
+  font-size: 11px;
+  color: #ffd84a;
+}
+
+#shop .coin {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  background: #ffd23a;
+  box-shadow: inset -2px -2px 0 #c08a1a;
+  border-radius: 50%;
+  vertical-align: -1px;
+}
+
+#shop .card.poor .price {
+  color: #ff4a5a;
+}
+
+#shop .card.maxed {
+  opacity: 0.5;
+}
+
+#shop .card.maxed .price {
+  color: #9ab8e0;
+}
+
+#shop .card.focus,
+#shop-continue.focus {
+  border-color: #5af0ff;
+  background: #1a2458;
+  box-shadow: 0 0 0 2px #0b0a1a, 0 0 14px rgba(90, 240, 255, 0.45);
+}
+
+#shop .card.bought {
+  animation: bought 0.35s steps(3);
+}
+
+#shop .card.denied {
+  animation: denied 0.3s steps(4);
+}
+
+@keyframes bought {
+  from {
+    background: #5af0ff;
+  }
+}
+
+@keyframes denied {
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+.shop-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+#shop-continue,
+#shop-save {
+  padding: 12px 28px;
+  font-size: 12px;
+  color: #ffd84a;
+}
+
+#shop-save {
+  font-family: inherit;
+  text-shadow: inherit;
+  background: #141a40;
+  border: 2px solid #2a3150;
+  cursor: pointer;
+  color: #5af0ff;
+}
+
+#shop-save.focus {
+  border-color: #5af0ff;
+  background: #1a2458;
+  box-shadow: 0 0 0 2px #0b0a1a, 0 0 14px rgba(90, 240, 255, 0.45);
+}
+
+/* Speicherplätze */
+#saves {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(4, 4, 18, 0.82);
+  pointer-events: auto;
+  /* Über Titelbildschirm und Werft */
+  z-index: 10;
+}
+
+#saves.hidden {
+  display: none;
+}
+
+.saves-panel {
+  width: min(820px, 100%);
+  padding: 18px 20px;
+  background: #0d1030;
+  border: 3px solid #2a3150;
+  box-shadow: 6px 6px 0 #05061a;
+}
+
+#saves-title {
+  font-size: 22px;
+  color: #5af0ff;
+  margin-bottom: 14px;
+}
+
+#saves-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+#saves .slot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 12px;
+  min-height: 34px;
+  font-family: inherit;
+  color: inherit;
+  text-shadow: inherit;
+  text-align: left;
+  background: #141a40;
+  border: 2px solid #2a3150;
+  cursor: pointer;
+  position: relative;
+}
+
+#saves .slot .num {
+  font-size: 10px;
+  color: #6a7ab0;
+}
+
+#saves .slot .label {
+  flex: 1;
+  font-size: 9px;
+  line-height: 1.7;
+  color: #fff;
+}
+
+#saves .slot .label.empty {
+  color: #4a5580;
+}
+
+#saves .slot .label small {
+  display: block;
+  font-size: 7px;
+  color: #9ab8e0;
+}
+
+#saves .slot .time {
+  font-size: 8px;
+  color: #ffd84a;
+}
+
+#saves .slot .confirm {
+  position: absolute;
+  right: 12px;
+  bottom: -2px;
+  font-size: 7px;
+  color: #ff4a5a;
+  animation: blink 0.5s steps(1) infinite;
+}
+
+#saves .slot.selected {
+  border-color: #5af0ff;
+  background: #1a2458;
+}
+
+#saves .slot.saved {
+  animation: bought 0.4s steps(3);
+}
+
+#saves-hint {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 8px;
+  color: #6a7ab0;
+}
+
+#title .difficulty.disabled {
+  opacity: 0.35;
+}
+
+#pause small {
+  display: block;
+  margin-top: 14px;
+  font-size: 11px;
+  color: #9ab8e0;
+  animation: none;
+}
+
+.shop-hint {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 8px;
+  color: #6a7ab0;
+}
+
+@media (max-width: 760px) {
+  #shop-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+#gameover {
+  position: absolute;
+  top: 50%;
+  width: 100%;
+  transform: translateY(-50%);
+  text-align: center;
+  font-size: 16px;
+  line-height: 2.4;
+}
+
+#gameover .go-title {
+  font-size: 44px;
+  color: #ff4a5a;
+}
+
+#gameover .go-hint {
+  font-size: 12px;
+  animation: blink 1s steps(1) infinite;
+}
+
+#hint {
+  position: absolute;
+  bottom: 24px;
+  width: 100%;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.8;
+  animation: hint-fade 1.5s steps(4) 8s forwards;
+}
+
+@keyframes hint-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+#pause {
+  position: absolute;
+  top: 50%;
+  width: 100%;
+  transform: translateY(-50%);
+  text-align: center;
+  font-size: 40px;
+  color: #fff;
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.hidden {
+  display: none;
+}

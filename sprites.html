@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Sprite-Vorschau</title>
+    <link rel="icon" href="data:," />
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #02030a;
+        color: #bff6ff;
+        font: 13px monospace;
+      }
+      .sheet {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 32px;
+        align-items: flex-end;
+      }
+      figure {
+        margin: 0;
+        text-align: center;
+      }
+      canvas {
+        image-rendering: pixelated;
+        background: #0d1030;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sheet" id="sheet"></div>
+    <script type="module" src="/src/dev/spriteSheet.ts"></script>
+  </body>
+</html>

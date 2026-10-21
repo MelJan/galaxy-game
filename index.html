@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Galaxy Game</title>
+    <link rel="icon" href="data:," />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud">
+      <div class="hud-top">
+        <div class="hud-left">
+          <span>SCORE <b id="score">0000000</b></span>
+          <span class="hull-row">HÜLLE <span id="hull"></span></span>
+          <span id="powerups"></span>
+        </div>
+        <div class="hud-right">
+          <span>GOLD <b id="gold">0</b></span>
+          <span id="difficulty"></span>
+          <span id="audio"></span>
+        </div>
+      </div>
+      <div id="flash"></div>
+      <div id="bossbar" class="hidden">
+        <div id="bossname"></div>
+        <div class="bossbar-track"><div id="bossfill"></div></div>
+      </div>
+      <div id="banner" class="hidden"></div>
+      <div id="hint">
+        WASD / Pfeiltasten: bewegen &middot; Leertaste: schießen &middot; P: Pause<br />
+        G: Grafik smooth/retro &middot; M: Musik &middot; N: Ton
+      </div>
+      <div id="pause" class="hidden">PAUSE<small>P: WEITER &middot; S: SPEICHERN</small></div>
+      <div id="saves" class="hidden">
+        <div class="saves-panel">
+          <div id="saves-title"></div>
+          <div id="saves-list"></div>
+          <div id="saves-hint"></div>
+        </div>
+      </div>
+      <div id="title" class="hidden">
+        <div class="title-logo">GALAXY<br />GAME</div>
+        <div class="title-label">SCHWIERIGKEIT</div>
+        <div id="title-list"></div>
+        <div class="title-hint">PFEILTASTEN: WÄHLEN &middot; ENTER / LEERTASTE: STARTEN</div>
+      </div>
+      <div id="shop" class="hidden">
+        <div class="shop-panel">
+          <div class="shop-head">
+            <div class="shop-title">WERFT</div>
+            <div class="shop-stats">
+              <span>HÜLLE <b id="shop-hull"></b></span>
+              <span><span class="coin"></span><b id="shop-gold"></b></span>
+            </div>
+          </div>
+          <div id="shop-grid"></div>
+          <div class="shop-buttons">
+            <button id="shop-continue">WEITERFLIEGEN</button>
+            <button id="shop-save">SPEICHERN</button>
+          </div>
+          <div class="shop-hint">PFEILTASTEN: AUSWÄHLEN &middot; LEERTASTE: KAUFEN &middot; ESC: WEITER</div>
+        </div>
+      </div>
+      <div id="gameover" class="hidden">
+        <div class="go-title">GAME OVER</div>
+        <div>SCORE <b id="final-score">0</b></div>
+        <div class="go-hint">ENTER: NEUSTART</div>
+        <div class="go-sub">ESC: SCHWIERIGKEIT WÄHLEN</div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
