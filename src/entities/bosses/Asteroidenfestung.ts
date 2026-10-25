@@ -117,9 +117,9 @@ export class Asteroidenfestung extends BossBase {
 
   protected onStart(): void {
     this.rotation = 0;
-    this.reactorMax = this.reactor.hp = 110 * this.diff.hp;
+    this.reactorMax = this.reactor.hp = 110 * this.hpMul;
     this.reactor.alive = true;
-    for (const t of this.turrets) Object.assign(t, { hp: 16 * this.diff.hp, alive: true, flash: 0, fireTimer: randRange(1, 3) });
+    for (const t of this.turrets) Object.assign(t, { hp: 16 * this.hpMul, alive: true, flash: 0, fireTimer: randRange(1, 3) });
     for (const s of this.sprites()) s.visible = true;
     this.tractor = 'idle';
     this.tractorTimer = 7;

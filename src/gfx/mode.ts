@@ -1,3 +1,5 @@
+import { storage } from '../core/storage';
+
 /**
  * Grafikmodus.
  * - smooth: volle Auflösung, Pixel-Art bewegt sich stufenlos (Pixelraster wandert mit den Objekten)
@@ -13,24 +15,16 @@ export const gfxUniforms = {
   uSoftness: { value: 0.35 },
 };
 
-const STORAGE_KEY = 'galaxy.gfx';
+const STORAGE_KEY = 'gfx';
 
 export function loadGfxMode(): void {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) GFX.smooth = saved === 'smooth';
-  } catch {
-    // Kein Speicher verfügbar: Standard behalten
-  }
+  const saved = storage.get(STORAGE_KEY);
+  if (saved) GFX.smooth = saved === 'smooth';
   gfxUniforms.uSmooth.value = GFX.smooth ? 1 : 0;
 }
 
 export function setGfxMode(smooth: boolean): void {
   GFX.smooth = smooth;
   gfxUniforms.uSmooth.value = smooth ? 1 : 0;
-  try {
-    localStorage.setItem(STORAGE_KEY, smooth ? 'smooth' : 'retro');
-  } catch {
-    // ignorieren
-  }
+  storage.set(STORAGE_KEY, smooth ? 'smooth' : 'retro');
 }

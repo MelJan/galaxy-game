@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Sound } from '../audio/Sound';
 import { PLAYER } from '../config';
-import type { Input } from '../core/Input';
+import type { Controls } from '../core/Input';
 import type { BulletPool } from '../entities/Bullets';
 import type { Player } from '../entities/Player';
 import type { Beam, Beams } from '../fx/Beams';
@@ -78,7 +78,7 @@ export class Weapons {
     this.sound.setLaser(false);
   }
 
-  update(dt: number, input: Input, player: Player): void {
+  update(dt: number, input: Controls, player: Player): void {
     this.time += dt;
     this.laserTime = Math.max(0, this.laserTime - dt);
     this.missileTime = Math.max(0, this.missileTime - dt);

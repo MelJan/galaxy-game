@@ -4,11 +4,28 @@
  * leicht in Tonhöhe und Ausprägung, damit Wiederholungen nicht monoton klingen.
  * Browser erlauben Audio erst nach einer Nutzeraktion, deshalb startet der AudioContext beim ersten Tastendruck.
  */
+import { storage } from '../core/storage';
+import { BOSS_PLAN, buildLead, chordAt, rootAt, SECTIONS, SECTOR_PLAN, type Section } from './arranger';
 import { LOOP_STEPS, SECTOR_SONGS, SONGS, type Song } from './music';
 
 export type Material = 'metal' | 'flesh' | 'crystal' | 'slime' | 'void';
-export type ShotSound = 'normal' | 'boss' | 'acid' | 'psi' | 'orb' | 'slime' | 'tracer' | 'shard' | 'void' | 'bio' | 'spike';
-export type BossTheme = 'mothership' | 'queen' | 'ark' | 'urschleim' | 'starship' | 'fortress' | 'shardswarm' | 'singularity' | 'leviathan';
+export type ShotSound = 'normal' | 'boss' | 'acid' | 'aether' | 'orb' | 'slime' | 'tracer' | 'shard' | 'void' | 'bio' | 'spike' | 'bolt';
+export type BossTheme =
+  | 'mothership'
+  | 'queen'
+  | 'ark'
+  | 'urschleim'
+  | 'rocket'
+  | 'fortress'
+  | 'shardswarm'
+  | 'singularity'
+  | 'leviathan'
+  | 'cabrio'
+  | 'kosmograd'
+  | 'unitas'
+  | 'squadron'
+  | 'odysseus'
+  | 'worldbreaker';
 export type MusicMode = 'normal' | BossTheme;
 export type PowerUpSound = 'repair' | 'shield' | 'fan' | 'laser' | 'missile' | 'option';
 
@@ -50,7 +67,7 @@ interface Fx {
   echo: GainNode;
 }
 
-const STORAGE_KEY = 'galaxy.audio';
+const STORAGE_KEY = 'audio';
 const midiToFreq = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 /** Wert um ±amount zufällig variieren. */
@@ -79,18 +96,22 @@ export class Sound {
   private song: Song = SONGS.chip;
   private sectorSong: Song = SONGS.chip;
   private musicMode: MusicMode = 'normal';
+  /** Arrangement: Anzahl gespielter Abschnitte, aktueller und vorheriger Abschnitt, Melodie dazu. */
+  private phrase = 0;
+  private section: Section = SECTIONS.intro;
+  private prevSection: Section | null = null;
+  private lead: [number, number, number][] = [];
+  private sectionStarted = -1;
+  private intensity = 0.5;
+  private musicFilter!: BiquadFilterNode;
   private laserNodes: { oscs: OscillatorNode[]; gain: GainNode } | null = null;
   private coinCombo = 0;
   private lastCoin = 0;
 
   constructor() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}');
-      if (typeof saved.sound === 'boolean') this.soundOn = saved.sound;
-      if (typeof saved.music === 'boolean') this.musicOn = saved.music;
-    } catch {
-      // Standard behalten
-    }
+    const saved = storage.getJSON<{ sound?: unknown; music?: unknown }>(STORAGE_KEY) ?? {};
+    if (typeof saved.sound === 'boolean') this.soundOn = saved.sound;
+    if (typeof saved.music === 'boolean') this.musicOn = saved.music;
     const unlock = () => this.ensure();
     window.addEventListener('keydown', unlock);
     window.addEventListener('pointerdown', unlock);
@@ -123,7 +144,12 @@ export class Sound {
       this.sfx.connect(this.master);
       this.music = ctx.createGain();
       this.music.gain.value = this.musicOn ? 0.32 : 0;
-      this.music.connect(this.master);
+      // Musik läuft durch einen Tiefpass, den das Arrangement fährt (Intro, Breakdown, Aufbau)
+      this.musicFilter = ctx.createBiquadFilter();
+      this.musicFilter.type = 'lowpass';
+      this.musicFilter.frequency.value = 18000;
+      this.musicFilter.Q.value = 0.9;
+      this.music.connect(this.musicFilter).connect(this.master);
 
       this.noiseBuffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
       const data = this.noiseBuffer.getChannelData(0);
@@ -174,11 +200,7 @@ export class Sound {
   }
 
   private save(): void {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ sound: this.soundOn, music: this.musicOn }));
-    } catch {
-      // ignorieren
-    }
+    storage.setJSON(STORAGE_KEY, { sound: this.soundOn, music: this.musicOn });
   }
 
   toggleSound(): void {
@@ -525,7 +547,7 @@ export class Sound {
         this.noise({ dur: 0.14, vol: 0.09, filter: 'bandpass', freq: vary(1300, 0.15), to: 400, q: 2 });
         this.tone({ type: 'sine', freq: vary(380), to: 900, dur: 0.05, vol: 0.05, delay: 0.03 });
         break;
-      case 'psi':
+      case 'aether':
         this.bell(vary(1200, 0.06), 0.12, 0.035, { ratio: 2.5, index: 2, echo: 0.25 });
         break;
       case 'orb':
@@ -554,6 +576,10 @@ export class Sound {
         break;
       case 'spike':
         this.noise({ dur: 0.05, vol: 0.08, filter: 'bandpass', freq: vary(3500), q: 3 });
+        break;
+      case 'bolt':
+        // Laserbolzen: heller Pfeifton mit schnellem Abfall
+        this.tone({ type: 'sawtooth', freq: vary(1800, 0.08), to: 500, dur: 0.1, vol: 0.04, lowpass: 5000 });
         break;
       case 'shard':
         this.bell(vary(2600, 0.1), 0.08, 0.025, { ratio: 3.5, index: 1.5 });
@@ -661,6 +687,33 @@ export class Sound {
         this.tone({ type: 'square', freq: 880, dur: 0.26, vol: 0.07, delay: i * 0.6 });
         this.tone({ type: 'square', freq: 622, dur: 0.26, vol: 0.07, delay: i * 0.6 + 0.3 });
       }
+    } else if (theme === 'cabrio') {
+      // Hupe und quietschende Reifen
+      for (let i = 0; i < 2; i++) {
+        this.tone({ type: 'square', freq: 392, dur: 0.22, vol: 0.09, delay: i * 0.35 });
+        this.tone({ type: 'square', freq: 494, dur: 0.22, vol: 0.07, delay: i * 0.35 });
+      }
+      this.noise({ dur: 0.9, vol: 0.12, filter: 'bandpass', freq: 2600, to: 1600, q: 6, delay: 0.8 });
+    } else if (theme === 'kosmograd' || theme === 'unitas') {
+      // Funkspruch: Piepser und Rauschen
+      this.noise({ dur: 2.2, vol: 0.05, filter: 'bandpass', freq: 1800, q: 1.2 });
+      for (let i = 0; i < 4; i++) this.tone({ type: 'sine', freq: theme === 'kosmograd' ? 1100 : 1500, dur: 0.12, vol: 0.06, delay: 0.3 + i * 0.4 });
+      this.tone({ type: 'sawtooth', freq: 70, dur: 2.4, vol: 0.08, attack: 0.6, lowpass: 400, delay: 0.2, reverb: 0.4 });
+    } else if (theme === 'squadron') {
+      // Vorbeiflug: Doppler-Sirren
+      for (let i = 0; i < 3; i++) this.tone({ type: 'sawtooth', freq: 900, to: 300, dur: 0.6, vol: 0.06, lowpass: 3000, delay: i * 0.45 });
+      this.noise({ dur: 1.8, vol: 0.1, filter: 'bandpass', freq: 800, to: 300, delay: 0.1 });
+    } else if (theme === 'odysseus') {
+      // Ringantrieb fährt hoch
+      this.tone({ type: 'sine', freq: 110, to: 880, dur: 2.2, vol: 0.12, vibrato: [7, 40], reverb: 0.4 });
+      [76, 81, 88].forEach((m, i) => this.bell(midiToFreq(m), 1.2, 0.05, { delay: 1 + i * 0.25, echo: 0.3 }));
+    } else if (theme === 'worldbreaker') {
+      // Schwere, langsame Schritte einer gewaltigen Maschine
+      for (let i = 0; i < 4; i++) {
+        this.tone({ type: 'sine', freq: 55, to: 30, dur: 0.6, vol: 0.55, delay: i * 0.7 });
+        this.noise({ dur: 0.5, vol: 0.18, filter: 'lowpass', freq: 500, delay: i * 0.7 });
+      }
+      this.tone({ type: 'sawtooth', freq: 41, dur: 3, vol: 0.12, attack: 1, lowpass: 300, reverb: 0.5 });
     } else if (theme === 'singularity') {
       // Tiefer Gravitations-Wub, der immer langsamer wird
       for (let i = 0; i < 5; i++) this.tone({ type: 'sine', freq: 90 - i * 10, to: 30, dur: 0.5 + i * 0.1, vol: 0.4, delay: i * (0.4 + i * 0.12), reverb: 0.4 });
@@ -674,7 +727,7 @@ export class Sound {
       // Gurgeln aus der Tiefe
       this.growl(70, 45, 2.2, 0.3, [300, 800], { reverb: 0.5 });
       for (let i = 0; i < 8; i++) this.tone({ type: 'sine', freq: rnd(120, 260), to: rnd(60, 90), dur: 0.15, vol: 0.12, delay: 0.3 + i * 0.2 });
-    } else if (theme === 'starship') {
+    } else if (theme === 'rocket') {
       // Countdown und Zündung
       for (let i = 0; i < 3; i++) this.tone({ type: 'sine', freq: 880, dur: 0.12, vol: 0.08, delay: i * 0.5 });
       this.tone({ type: 'sine', freq: 1760, dur: 0.3, vol: 0.08, delay: 1.5 });
@@ -819,6 +872,50 @@ export class Sound {
     this.tone({ type: 'sine', freq: 200, to: 80, dur: 0.3, vol: 0.12 });
   }
 
+  /** Sternencabrio hupt. */
+  honk(): void {
+    if (!this.throttle('honk', 0.5)) return;
+    this.tone({ type: 'square', freq: 392, dur: 0.25, vol: 0.09 });
+    this.tone({ type: 'square', freq: 494, dur: 0.25, vol: 0.07 });
+  }
+
+  /** Ein Stationsmodul bricht ab. */
+  detach(): void {
+    this.noise({ dur: 0.6, vol: 0.2, filter: 'bandpass', freq: 1200, to: 200, q: 2 });
+    this.tone({ type: 'square', freq: 220, to: 60, dur: 0.5, vol: 0.06 });
+    for (let i = 0; i < 4; i++) this.tone({ type: 'square', freq: rnd(1200, 2400), dur: 0.03, vol: 0.03, delay: rnd(0, 0.4) });
+  }
+
+  /** Schuss wird von einem Solarsegel zurückgespiegelt. */
+  reflect(): void {
+    if (!this.throttle('reflect', 0.07)) return;
+    this.bell(vary(2200, 0.1), 0.1, 0.03, { ratio: 1.41, index: 2 });
+  }
+
+  /** Odysseus teleportiert sich. */
+  teleport(): void {
+    this.tone({ type: 'sine', freq: 300, to: 2400, dur: 0.5, vol: 0.06, vibrato: [30, 80], echo: 0.3 });
+    this.noise({ dur: 0.4, vol: 0.05, filter: 'highpass', freq: 5000 });
+  }
+
+  /** Countdown-Tick des Weltenbrechers (die letzten Sekunden höher). */
+  tick(urgent = false): void {
+    this.tone({ type: 'square', freq: urgent ? 1320 : 880, dur: 0.05, vol: urgent ? 0.07 : 0.04 });
+  }
+
+  /** Superwaffe lädt. */
+  superCharge(): void {
+    this.tone({ type: 'sawtooth', freq: 60, to: 900, dur: 2, vol: 0.12, lowpass: 2500, reverb: 0.4 });
+    this.noise({ dur: 2, vol: 0.12, filter: 'bandpass', freq: 300, to: 6000, q: 1.5 });
+  }
+
+  /** Superwaffe feuert. */
+  superFire(): void {
+    this.noise({ dur: 1.8, vol: 0.5, filter: 'lowpass', freq: 5000, to: 200, reverb: 0.4 });
+    this.tone({ type: 'sawtooth', freq: 80, to: 40, dur: 1.8, vol: 0.25, lowpass: 1200 });
+    this.tone({ type: 'sine', freq: 50, to: 25, dur: 1.8, vol: 0.5 });
+  }
+
   /** Lange Todessequenz eines Endgegners. */
   bossDeath(material: Material): void {
     if (material === 'void') {
@@ -847,25 +944,37 @@ export class Sound {
   // Musik
   // -------------------------------------------------------------------------
 
-  /** Sektor-Musik wählen (0 = Imperium, 1 = Schwarm, 2 = Aufgestiegene). */
+  /** Sektor-Musik wählen (Index in SECTOR_SONGS). */
   setSector(sector: number): void {
     this.sectorSong = SONGS[SECTOR_SONGS[sector % SECTOR_SONGS.length]];
     if (this.musicMode === 'normal') this.setMusic('normal');
   }
 
-  /** Musikstück wechseln: Sektor-Musik oder der Track eines Endgegners. Beginnt sofort von vorn. */
+  /** Musikstück wechseln: Sektor-Musik oder der Track eines Endgegners. Beginnt sofort mit dem ersten Abschnitt. */
   setMusic(mode: MusicMode): void {
     this.musicMode = mode;
     const song = mode === 'normal' ? this.sectorSong : SONGS[mode];
     if (song === this.song) return;
     this.song = song;
     this.step = 0;
+    this.phrase = 0;
+    this.beginSection();
     if (this.ctx) this.nextStepTime = Math.max(this.nextStepTime, this.ctx.currentTime + 0.05);
+  }
+
+  /**
+   * Spielintensität 0..1 (z. B. Anzahl Gegner). Wird geglättet; bestimmt beim nächsten Abschnitt,
+   * ob es ruhiger (zwischen Wellen) oder dichter (viele Gegner) weitergeht.
+   */
+  setIntensity(target: number, dt: number): void {
+    this.intensity += (clamp01(target) - this.intensity) * Math.min(1, dt * 0.35);
   }
 
   private startMusic(): void {
     if (!this.ctx) return;
     this.step = 0;
+    this.phrase = 0;
+    this.beginSection();
     this.nextStepTime = this.ctx.currentTime + 0.1;
     window.clearInterval(this.musicTimer);
     this.musicTimer = window.setInterval(() => this.scheduleMusic(), 25);
@@ -879,55 +988,101 @@ export class Sound {
     if (this.nextStepTime < ctx.currentTime - 0.2) this.nextStepTime = ctx.currentTime + 0.05;
     const stepLen = 60 / this.song.tempo / 4;
     while (this.nextStepTime < ctx.currentTime + 0.12) {
+      if (this.step === 0 && this.sectionStarted !== this.phrase) this.applySectionFilter(this.nextStepTime, stepLen);
       this.playStep(this.step, this.nextStepTime - ctx.currentTime, stepLen);
       this.nextStepTime += stepLen;
       this.step = (this.step + 1) % LOOP_STEPS;
+      if (this.step === 0) {
+        this.phrase++;
+        this.beginSection();
+      }
     }
+  }
+
+  /** Nächsten Abschnitt wählen: nach Plan, aber angepasst an die Spielintensität. */
+  private beginSection(): void {
+    const boss = this.musicMode !== 'normal';
+    const plan = boss ? BOSS_PLAN : SECTOR_PLAN;
+    // Nach dem ersten Durchlauf ohne Intro weiter
+    const i = this.phrase < plan.length ? this.phrase : 1 + ((this.phrase - 1) % (plan.length - 1));
+    let section = SECTIONS[plan[i]];
+    if (!boss && this.phrase > 0) {
+      const calm = this.intensity < 0.18;
+      const loud = section.drums === 'off' || section.name === 'build';
+      // Ruhige Phase im Spiel (zwischen Wellen, Werft): kein voller Einsatz, sondern ein ruhiger Abschnitt
+      if (calm && !loud) section = SECTIONS.calm;
+      // Viel los: Schlagzeug verdichten
+      else if (this.intensity > 0.65 && section.drums === 'normal') section = { ...section, drums: 'busy' };
+    }
+    this.prevSection = this.section;
+    this.section = section;
+    this.lead = buildLead(this.song, section, this.phrase * 7919 + this.song.tempo);
+  }
+
+  /** Tiefpass-Fahrt über den Abschnitt (Intro öffnet sich, Aufbau rauscht nach oben). */
+  private applySectionFilter(at: number, stepLen: number): void {
+    this.sectionStarted = this.phrase;
+    const f = this.musicFilter.frequency;
+    const [from, to] = this.section.filter;
+    f.cancelScheduledValues(at);
+    f.setValueAtTime(from, at);
+    if (to !== from) f.exponentialRampToValueAtTime(to, at + stepLen * LOOP_STEPS);
   }
 
   private playStep(step: number, delay: number, len: number): void {
     const song = this.song;
+    const L = this.section;
     const bar = Math.floor(step / 16);
     const s = step % 16;
-    const root = song.bassRoots[bar];
-    const chord = song.chords[bar];
+    const root = rootAt(song, bar, L);
+    const chord = chordAt(song, bar, L);
     const m: Route = { bus: 'music' };
-    const melody = song.melody.find(([at]) => at === step);
+    const melody = this.lead.find(([at]) => at === step);
+    const lv = L.leadVol;
+    const arpIdx = L.arp[s % 4];
+    // Im Wirbel am Ende des Abschnitts schweigt das normale Schlagzeug
+    const fillNow = L.fill && bar === 3 && s >= 12;
+    const drums = (L.drums === 'normal' || L.drums === 'busy') && !fillNow;
+    const fullBass = L.bass === 'full';
 
     switch (song.style) {
       case 'chip':
       case 'mothership': {
         const drive = song.style === 'mothership';
-        if (drive || s % 2 === 0) {
+        if (fullBass && (drive || s % 2 === 0)) {
           const note = root + (s % 4 === 2 ? 12 : 0);
           this.tone({ ...m, type: drive ? 'sawtooth' : 'triangle', freq: midiToFreq(note), dur: len * (drive ? 0.9 : 1.8), vol: drive ? 0.22 : 0.5, delay });
         }
-        const arp = [chord[0], chord[1], chord[2], chord[0] + 12][s % 4] + 12;
-        this.tone({ ...m, type: 'square', freq: midiToFreq(arp), dur: len * 0.8, vol: 0.06, delay });
-        if (melody) this.tone({ ...m, type: 'square', freq: midiToFreq(melody[1]), dur: len * melody[2] * 0.95, vol: 0.12, delay });
-        const kick = drive ? s % 4 === 0 : s === 0 || s === 8 || s === 10;
-        if (kick) this.tone({ ...m, type: 'sine', freq: 150, to: 40, dur: 0.14, vol: 0.7, delay });
-        if (s === 4 || s === 12) this.noise({ ...m, dur: 0.12, vol: 0.35, filter: 'bandpass', freq: 1800, delay });
-        if (s % 2 === 1) this.noise({ ...m, dur: 0.03, vol: 0.12, filter: 'highpass', freq: 7000, delay });
+        if (L.harm) {
+          const arp = [chord[0], chord[1], chord[2], chord[0] + 12][arpIdx] + 12;
+          this.tone({ ...m, type: 'square', freq: midiToFreq(arp), dur: len * 0.8, vol: 0.06, delay });
+        }
+        if (melody) this.tone({ ...m, type: 'square', freq: midiToFreq(melody[1]), dur: len * melody[2] * 0.95, vol: 0.12 * lv, delay });
+        if (drums) {
+          const kick = drive ? s % 4 === 0 : s === 0 || s === 8 || s === 10;
+          if (kick) this.tone({ ...m, type: 'sine', freq: 150, to: 40, dur: 0.14, vol: 0.7, delay });
+          if (s === 4 || s === 12) this.noise({ ...m, dur: 0.12, vol: 0.35, filter: 'bandpass', freq: 1800, delay });
+          if (s % 2 === 1) this.noise({ ...m, dur: 0.03, vol: 0.12, filter: 'highpass', freq: 7000, delay });
+        }
         break;
       }
 
       case 'swarm': {
-        // Synkopierter, dumpfer Sägezahn-Bass
-        if ([0, 3, 6, 8, 11, 14].includes(s)) this.tone({ ...m, type: 'sawtooth', freq: midiToFreq(root), dur: len * 1.6, vol: 0.3, lowpass: 380, delay });
-        if (s % 4 === 2) this.tone({ ...m, type: 'triangle', freq: midiToFreq(chord[Math.floor(s / 4) % 3]), dur: len * 1.5, vol: 0.05, delay });
-        if (melody) this.tone({ ...m, type: 'triangle', freq: midiToFreq(melody[1]), dur: len * melody[2] * 0.95, vol: 0.13, vibrato: [5, 18], reverb: 0.25, delay });
-        // Herzschlag: ba-dum auf 0/2 und 8/10, dazu tiefe Toms und ein Rassler
-        if ([0, 2, 8, 10].includes(s)) this.tone({ ...m, type: 'sine', freq: s % 8 === 0 ? 110 : 90, to: 42, dur: 0.2, vol: s % 8 === 0 ? 0.75 : 0.5, delay });
-        if (s === 6 || s === 14) this.tone({ ...m, type: 'sine', freq: 170, to: 80, dur: 0.22, vol: 0.4, delay });
-        if (s % 2 === 1) this.noise({ ...m, dur: 0.05, vol: 0.06, filter: 'bandpass', freq: 5000, q: 2, delay });
+        if (fullBass && [0, 3, 6, 8, 11, 14].includes(s)) this.tone({ ...m, type: 'sawtooth', freq: midiToFreq(root), dur: len * 1.6, vol: 0.3, lowpass: 380, delay });
+        if (L.harm && s % 4 === 2) this.tone({ ...m, type: 'triangle', freq: midiToFreq(chord[arpIdx % 3]), dur: len * 1.5, vol: 0.05, delay });
+        if (melody) this.tone({ ...m, type: 'triangle', freq: midiToFreq(melody[1]), dur: len * melody[2] * 0.95, vol: 0.13 * lv, vibrato: [5, 18], reverb: 0.25, delay });
+        if (drums) {
+          // Herzschlag: ba-dum auf 0/2 und 8/10, dazu tiefe Toms und ein Rassler
+          if ([0, 2, 8, 10].includes(s)) this.tone({ ...m, type: 'sine', freq: s % 8 === 0 ? 110 : 90, to: 42, dur: 0.2, vol: s % 8 === 0 ? 0.75 : 0.5, delay });
+          if (s === 6 || s === 14) this.tone({ ...m, type: 'sine', freq: 170, to: 80, dur: 0.22, vol: 0.4, delay });
+          if (s % 2 === 1) this.noise({ ...m, dur: 0.05, vol: 0.06, filter: 'bandpass', freq: 5000, q: 2, delay });
+        }
         break;
       }
 
       case 'ascend':
       case 'ark': {
         const fast = song.style === 'ark';
-        // Fläche aus verstimmten Sägezähnen zu Taktbeginn
         if (s === 0) {
           for (const n of chord) {
             for (const d of [-7, 7]) {
@@ -935,124 +1090,183 @@ export class Sound {
             }
           }
         }
-        // Bass: weich und lang, in der Arche treibend
-        if (fast ? s % 2 === 0 : s % 8 === 0) {
+        if (fullBass && (fast ? s % 2 === 0 : s % 8 === 0)) {
           this.tone({ ...m, type: 'sine', freq: midiToFreq(root + (fast && s % 4 === 2 ? 12 : 0)), dur: len * (fast ? 1.8 : 7), vol: 0.4, delay });
         }
-        // Glocken-Arpeggio mit Echo
-        const arp = [chord[0], chord[1], chord[2], chord[1]][s % 4] + 12;
-        this.bell(midiToFreq(arp), len * 3, fast ? 0.035 : 0.03, { bus: 'music', echo: 0.35, ratio: 2, index: 0.9, delay });
-        if (melody) this.tone({ ...m, type: fast ? 'triangle' : 'sine', freq: midiToFreq(melody[1]), dur: len * melody[2] * 0.95, vol: 0.12, reverb: 0.35, echo: 0.25, delay });
-        if (fast ? s % 4 === 0 : s % 8 === 0) this.tone({ ...m, type: 'sine', freq: 120, to: 45, dur: 0.16, vol: fast ? 0.6 : 0.45, delay });
-        if (fast && (s === 4 || s === 12)) this.noise({ ...m, dur: 0.14, vol: 0.25, filter: 'bandpass', freq: 2200, reverb: 0.3, delay });
-        if (fast ? s % 2 === 1 : s % 4 === 2) this.noise({ ...m, dur: 0.03, vol: 0.06, filter: 'highpass', freq: 9000, delay });
-        if (!fast && (s === 4 || s === 12)) this.bell(2400, 0.4, 0.015, { bus: 'music', ratio: 1.41, reverb: 0.4, delay });
+        if (L.harm) {
+          const arp = [chord[0], chord[1], chord[2], chord[1]][arpIdx] + 12;
+          this.bell(midiToFreq(arp), len * 3, fast ? 0.035 : 0.03, { bus: 'music', echo: 0.35, ratio: 2, index: 0.9, delay });
+        }
+        if (melody) this.tone({ ...m, type: fast ? 'triangle' : 'sine', freq: midiToFreq(melody[1]), dur: len * melody[2] * 0.95, vol: 0.12 * lv, reverb: 0.35, echo: 0.25, delay });
+        if (drums) {
+          if (fast ? s % 4 === 0 : s % 8 === 0) this.tone({ ...m, type: 'sine', freq: 120, to: 45, dur: 0.16, vol: fast ? 0.6 : 0.45, delay });
+          if (fast && (s === 4 || s === 12)) this.noise({ ...m, dur: 0.14, vol: 0.25, filter: 'bandpass', freq: 2200, reverb: 0.3, delay });
+          if (fast ? s % 2 === 1 : s % 4 === 2) this.noise({ ...m, dur: 0.03, vol: 0.06, filter: 'highpass', freq: 9000, delay });
+          if (!fast && (s === 4 || s === 12)) this.bell(2400, 0.4, 0.015, { bus: 'music', ratio: 1.41, reverb: 0.4, delay });
+        }
         break;
       }
 
       case 'slime': {
         const fast = song.tempo > 120;
-        // Blubber-Bass: Sinus, der nach unten rutscht
-        if ([0, 3, 6, 10, 12].includes(s)) this.tone({ ...m, type: 'sine', freq: midiToFreq(root + 12), to: midiToFreq(root), dur: len * 2.2, vol: 0.42, delay });
-        // Aufsteigende Bläschen
-        if (s % 2 === 1 && Math.random() < 0.6) {
+        if (fullBass && [0, 3, 6, 10, 12].includes(s)) this.tone({ ...m, type: 'sine', freq: midiToFreq(root + 12), to: midiToFreq(root), dur: len * 2.2, vol: 0.42, delay });
+        if (L.harm && s % 2 === 1 && Math.random() < 0.6) {
           const n = midiToFreq(chord[Math.floor(Math.random() * 3)] + 24);
           this.tone({ ...m, type: 'sine', freq: n, to: n * 1.5, dur: 0.06, vol: 0.035, delay });
         }
-        if (melody) this.tone({ ...m, type: 'triangle', freq: midiToFreq(melody[1]), dur: len * melody[2] * 0.9, vol: 0.11, vibrato: [7, 35], reverb: 0.3, delay });
-        if (s === 0 || s === 8 || (fast && s === 11)) this.tone({ ...m, type: 'sine', freq: 130, to: 45, dur: 0.16, vol: 0.6, delay });
-        // Matschiger Snare-Ersatz
-        if (s === 4 || s === 12) this.noise({ ...m, dur: 0.12, vol: 0.22, filter: 'bandpass', freq: 1400, q: 3, delay });
-        if (s === 14 && Math.random() < 0.5) this.noise({ ...m, dur: 0.04, vol: 0.08, filter: 'highpass', freq: 5000, delay });
+        if (melody) this.tone({ ...m, type: 'triangle', freq: midiToFreq(melody[1]), dur: len * melody[2] * 0.9, vol: 0.11 * lv, vibrato: [7, 35], reverb: 0.3, delay });
+        if (drums) {
+          if (s === 0 || s === 8 || (fast && s === 11)) this.tone({ ...m, type: 'sine', freq: 130, to: 45, dur: 0.16, vol: 0.6, delay });
+          if (s === 4 || s === 12) this.noise({ ...m, dur: 0.12, vol: 0.22, filter: 'bandpass', freq: 1400, q: 3, delay });
+          if (s === 14 && Math.random() < 0.5) this.noise({ ...m, dur: 0.04, vol: 0.08, filter: 'highpass', freq: 5000, delay });
+        }
         break;
       }
 
       case 'terran': {
         const fast = song.tempo > 130;
-        // Bass in Oktaven
-        if (s % 2 === 0) this.tone({ ...m, type: 'square', freq: midiToFreq(root + (s % 4 === 2 ? 12 : 0)), dur: len * 1.6, vol: 0.1, lowpass: 900, delay });
-        // Blechbläser: zwei leicht verstimmte Rechtecke mit weichem Einsatz
+        if (fullBass && s % 2 === 0) this.tone({ ...m, type: 'square', freq: midiToFreq(root + (s % 4 === 2 ? 12 : 0)), dur: len * 1.6, vol: 0.1, lowpass: 900, delay });
         if (melody) {
           for (const d of [-6, 6]) {
-            this.tone({ ...m, type: 'square', freq: midiToFreq(melody[1]) * Math.pow(2, d / 1200), dur: len * melody[2] * 0.95, vol: 0.05, attack: 0.04, lowpass: 2400, delay });
+            this.tone({ ...m, type: 'square', freq: midiToFreq(melody[1]) * Math.pow(2, d / 1200), dur: len * melody[2] * 0.95, vol: 0.05 * lv, attack: 0.04, lowpass: 2400, delay });
           }
         }
-        if (s % 4 === 0 && s !== 0) this.tone({ ...m, type: 'triangle', freq: midiToFreq(chord[1]), dur: len * 3, vol: 0.04, delay });
-        if (s === 0 || s === 8 || (fast && (s === 6 || s === 10))) this.tone({ ...m, type: 'sine', freq: 140, to: 42, dur: 0.15, vol: 0.7, delay });
-        if (s === 4 || s === 12) this.noise({ ...m, dur: 0.14, vol: 0.35, filter: 'bandpass', freq: 1900, delay });
-        // Snare-Wirbel am Ende jedes zweiten Takts
-        if (bar % 2 === 1 && s >= 13) this.noise({ ...m, dur: 0.05, vol: 0.14, filter: 'bandpass', freq: 2300, delay });
-        if (s % 2 === 0) this.noise({ ...m, dur: 0.03, vol: 0.05, filter: 'highpass', freq: 8000, delay });
+        if (L.harm && s % 4 === 0 && s !== 0) this.tone({ ...m, type: 'triangle', freq: midiToFreq(chord[1 + (arpIdx % 2)]), dur: len * 3, vol: 0.04, delay });
+        if (drums) {
+          if (s === 0 || s === 8 || (fast && (s === 6 || s === 10))) this.tone({ ...m, type: 'sine', freq: 140, to: 42, dur: 0.15, vol: 0.7, delay });
+          if (s === 4 || s === 12) this.noise({ ...m, dur: 0.14, vol: 0.35, filter: 'bandpass', freq: 1900, delay });
+          if (bar % 2 === 1 && s >= 13) this.noise({ ...m, dur: 0.05, vol: 0.14, filter: 'bandpass', freq: 2300, delay });
+          if (s % 2 === 0) this.noise({ ...m, dur: 0.03, vol: 0.05, filter: 'highpass', freq: 8000, delay });
+        }
         break;
       }
 
       case 'void': {
         const fast = song.tempo > 120;
-        // Tiefes Dröhnen und anschwellende, rückwärts wirkende Flächen
         if (s === 0) {
           this.tone({ ...m, type: 'sawtooth', freq: midiToFreq(root), dur: len * 16, vol: 0.12, attack: len * 10, lowpass: 380, delay });
-          for (const n of chord) this.tone({ ...m, type: 'triangle', freq: midiToFreq(n), dur: len * 15, vol: 0.025, attack: len * 12, reverb: 0.6, delay });
+          if (L.harm) for (const n of chord) this.tone({ ...m, type: 'triangle', freq: midiToFreq(n), dur: len * 15, vol: 0.025, attack: len * 12, reverb: 0.6, delay });
         }
-        if (melody) this.tone({ ...m, type: 'sine', freq: midiToFreq(melody[1]), dur: len * melody[2], vol: 0.1, attack: len * Math.min(3, melody[2]), vibrato: [3, 25], reverb: 0.5, echo: 0.3, delay });
-        // Herzschlag-artiger, sehr tiefer Puls
-        if (s === 0 || (fast && s === 8) || s === 10) this.tone({ ...m, type: 'sine', freq: 70, to: 30, dur: 0.35, vol: 0.6, delay });
-        if (fast && s % 4 === 2) this.noise({ ...m, dur: 0.2, vol: 0.1, filter: 'bandpass', freq: 400, to: 3000, q: 3, delay });
-        if (s === 12) this.noise({ ...m, dur: len * 4, vol: 0.05, filter: 'highpass', freq: 2000, to: 8000, reverb: 0.5, delay });
+        if (melody) this.tone({ ...m, type: 'sine', freq: midiToFreq(melody[1]), dur: len * melody[2], vol: 0.1 * lv, attack: len * Math.min(3, melody[2]), vibrato: [3, 25], reverb: 0.5, echo: 0.3, delay });
+        if (drums) {
+          if (s === 0 || (fast && s === 8) || s === 10) this.tone({ ...m, type: 'sine', freq: 70, to: 30, dur: 0.35, vol: 0.6, delay });
+          if (fast && s % 4 === 2) this.noise({ ...m, dur: 0.2, vol: 0.1, filter: 'bandpass', freq: 400, to: 3000, q: 3, delay });
+        }
+        if (L.harm && s === 12) this.noise({ ...m, dur: len * 4, vol: 0.05, filter: 'highpass', freq: 2000, to: 8000, reverb: 0.5, delay });
         break;
       }
 
       case 'deep': {
         const fast = song.tempo > 120;
-        // Walgesang als Melodie: weiche Glissandi
         if (melody) {
-          const next = song.melody.find(([at]) => at > step);
+          const next = this.lead.find(([at]) => at > step);
           const to = next ? midiToFreq(next[1]) : undefined;
-          this.tone({ ...m, type: 'sine', freq: midiToFreq(melody[1]), to, dur: len * melody[2], vol: 0.12, attack: len, vibrato: [4.5, 30], reverb: 0.5, delay });
+          this.tone({ ...m, type: 'sine', freq: midiToFreq(melody[1]), to, dur: len * melody[2], vol: 0.12 * lv, attack: len, vibrato: [4.5, 30], reverb: 0.5, delay });
         }
-        if (s % 8 === 0) this.tone({ ...m, type: 'sine', freq: midiToFreq(root), dur: len * 8, vol: 0.38, attack: 0.05, delay });
-        // Langsames, blubberndes Arpeggio
-        if (s % 2 === 0) this.tone({ ...m, type: 'triangle', freq: midiToFreq(chord[(s / 2) % 3] + 12), dur: len * 1.8, vol: 0.04, echo: 0.3, delay });
-        // Sonar-Ping
+        if (fullBass && s % 8 === 0) this.tone({ ...m, type: 'sine', freq: midiToFreq(root), dur: len * 8, vol: 0.38, attack: 0.05, delay });
+        if (L.harm && s % 2 === 0) this.tone({ ...m, type: 'triangle', freq: midiToFreq(chord[(s / 2 + arpIdx) % 3] + 12), dur: len * 1.8, vol: 0.04, echo: 0.3, delay });
         if (s === 0 && bar % 2 === 0) this.bell(1320, 1.2, 0.05, { bus: 'music', ratio: 1, index: 0.2, echo: 0.6, delay });
-        if (fast ? s % 4 === 0 : s === 0 || s === 9) this.tone({ ...m, type: 'sine', freq: 110, to: 45, dur: 0.2, vol: 0.5, delay });
-        if (fast && (s === 4 || s === 12)) this.noise({ ...m, dur: 0.15, vol: 0.18, filter: 'bandpass', freq: 900, q: 2, reverb: 0.3, delay });
+        if (drums) {
+          if (fast ? s % 4 === 0 : s === 0 || s === 9) this.tone({ ...m, type: 'sine', freq: 110, to: 45, dur: 0.2, vol: 0.5, delay });
+          if (fast && (s === 4 || s === 12)) this.noise({ ...m, dur: 0.15, vol: 0.18, filter: 'bandpass', freq: 900, q: 2, reverb: 0.3, delay });
+        }
         break;
       }
 
       case 'crystal': {
         const fast = song.tempo > 150;
         if (s === 0) this.tone({ ...m, type: 'sine', freq: midiToFreq(root), dur: len * 15, vol: 0.3, delay });
-        if (fast && s === 8) this.tone({ ...m, type: 'sine', freq: midiToFreq(root + 7), dur: len * 7, vol: 0.2, delay });
-        // Leise Fläche
-        if (s === 0) {
-          for (const n of chord) this.tone({ ...m, type: 'triangle', freq: midiToFreq(n - 12), dur: len * 16, vol: 0.02, attack: len * 4, reverb: 0.5, delay });
-        }
-        // Celesta: helle Glocken auf unregelmäßigen Schritten
-        if ((fast ? [0, 2, 3, 5, 6, 8, 10, 11, 13, 14] : [0, 3, 6, 9, 12, 14]).includes(s)) {
+        if (fullBass && fast && s === 8) this.tone({ ...m, type: 'sine', freq: midiToFreq(root + 7), dur: len * 7, vol: 0.2, delay });
+        if (s === 0) for (const n of chord) this.tone({ ...m, type: 'triangle', freq: midiToFreq(n - 12), dur: len * 16, vol: 0.02, attack: len * 4, reverb: 0.5, delay });
+        if (L.harm && (fast ? [0, 2, 3, 5, 6, 8, 10, 11, 13, 14] : [0, 3, 6, 9, 12, 14]).includes(s)) {
           this.bell(midiToFreq(chord[Math.floor(Math.random() * 3)] + 24), len * 4, 0.028, { bus: 'music', ratio: 3.5, index: 1.2, echo: 0.4, delay });
         }
-        if (melody) this.bell(midiToFreq(melody[1]), len * melody[2] * 1.2, 0.07, { bus: 'music', ratio: 2, index: 0.6, reverb: 0.4, delay });
-        // Glasticken
-        if (s % 2 === 1) this.bell(4200, 0.05, 0.01, { bus: 'music', ratio: 1.41, delay });
-        if (fast && s % 4 === 0) this.tone({ ...m, type: 'sine', freq: 120, to: 50, dur: 0.12, vol: 0.45, delay });
+        if (melody) this.bell(midiToFreq(melody[1]), len * melody[2] * 1.2, 0.07 * lv, { bus: 'music', ratio: 2, index: 0.6, reverb: 0.4, delay });
+        if (drums) {
+          if (s % 2 === 1) this.bell(4200, 0.05, 0.01, { bus: 'music', ratio: 1.41, delay });
+          if (fast && s % 4 === 0) this.tone({ ...m, type: 'sine', freq: 120, to: 50, dur: 0.12, vol: 0.45, delay });
+        }
         break;
       }
 
       case 'queen': {
-        // Dröhnen: Grundton und eine kleine Sekunde darüber, das klingt bedrohlich
         if (s === 0) {
           this.tone({ ...m, type: 'sawtooth', freq: midiToFreq(root + 12), dur: len * 16, vol: 0.14, attack: 0.3, lowpass: 500, delay });
           this.tone({ ...m, type: 'sawtooth', freq: midiToFreq(root + 13), dur: len * 16, vol: 0.05, attack: 0.6, lowpass: 400, delay });
         }
-        // Klagende Melodie
-        if (melody) this.tone({ ...m, type: 'sawtooth', freq: midiToFreq(melody[1]), dur: len * melody[2], vol: 0.06, attack: 0.2, lowpass: 1600, vibrato: [5.5, 30], reverb: 0.45, delay });
-        // Tribal-Trommeln
-        if ([0, 3, 6, 8, 10, 13].includes(s)) this.tone({ ...m, type: 'sine', freq: s === 0 ? 70 : s % 2 ? 150 : 115, to: 50, dur: 0.25, vol: s === 0 ? 0.8 : 0.45, delay });
-        if (s === 0) this.noise({ ...m, dur: 0.4, vol: 0.2, filter: 'lowpass', freq: 400, delay });
-        if (s % 2 === 1) this.noise({ ...m, dur: 0.05, vol: 0.05, filter: 'bandpass', freq: 4000, q: 2, delay });
-        if (s === 15 && Math.random() < 0.5) this.chitter(4, 2400, 0.015, delay);
+        if (melody) this.tone({ ...m, type: 'sawtooth', freq: midiToFreq(melody[1]), dur: len * melody[2], vol: 0.06 * lv, attack: 0.2, lowpass: 1600, vibrato: [5.5, 30], reverb: 0.45, delay });
+        if (drums) {
+          if ([0, 3, 6, 8, 10, 13].includes(s)) this.tone({ ...m, type: 'sine', freq: s === 0 ? 70 : s % 2 ? 150 : 115, to: 50, dur: 0.25, vol: s === 0 ? 0.8 : 0.45, delay });
+          if (s === 0) this.noise({ ...m, dur: 0.4, vol: 0.2, filter: 'lowpass', freq: 400, delay });
+          if (s % 2 === 1) this.noise({ ...m, dur: 0.05, vol: 0.05, filter: 'bandpass', freq: 4000, q: 2, delay });
+        }
+        if (L.harm && s === 15 && Math.random() < 0.5) this.chitter(4, 2400, 0.015, delay);
         break;
       }
     }
+
+    this.playArrangement(step, delay, len, root, chord);
   }
+
+  /** Ebenen, die für alle Stile gleich sind: Grundton-Pedal, Fläche, Gegenstimme, Dichte, Aufbau, Wirbel, Becken. */
+  private playArrangement(step: number, delay: number, len: number, root: number, chord: number[]): void {
+    const L = this.section;
+    const style = this.song.style;
+    const bar = Math.floor(step / 16);
+    const s = step % 16;
+    const m: Route = { bus: 'music' };
+
+    // Pedal statt Bass: ein langer, weicher Grundton pro Takt
+    if (L.bass === 'pedal' && s === 0) this.tone({ ...m, type: 'sine', freq: midiToFreq(root), dur: len * 16, vol: 0.3, attack: len * 2, delay });
+
+    // Fläche für Stile ohne eigene
+    const hasPad = ['ascend', 'ark', 'void', 'crystal', 'queen'].includes(style);
+    if (L.pad && !hasPad && s === 0) {
+      for (const n of chord) this.tone({ ...m, type: 'triangle', freq: midiToFreq(n), dur: len * 16, vol: 0.022, attack: len * 5, reverb: 0.5, delay });
+    }
+
+    // Gegenstimme in Vierteln, Klangfarbe je Stilfamilie
+    if (L.counter && s % 4 === 0) {
+      const lowChords = chord[0] < 60;
+      const n = chord[[0, 2, 1, 2][(s / 4) % 4]] + (lowChords ? 12 : 0) + (bar % 2 ? 0 : 12);
+      if (['ascend', 'ark', 'crystal', 'void'].includes(style)) this.bell(midiToFreq(n), len * 4, 0.03, { bus: 'music', ratio: 2, index: 0.8, echo: 0.3, delay });
+      else if (['chip', 'mothership', 'terran'].includes(style)) this.tone({ ...m, type: 'triangle', freq: midiToFreq(n), dur: len * 3.5, vol: 0.06, delay });
+      else this.tone({ ...m, type: 'sine', freq: midiToFreq(n), dur: len * 3.5, vol: 0.06, vibrato: [5, 20], reverb: 0.3, delay });
+    }
+
+    // Dichteres Schlagzeug: Sechzehntel-Hi-Hats und ein zusätzlicher Kick
+    if (L.drums === 'busy' && !(L.fill && bar === 3 && s >= 12)) {
+      this.noise({ ...m, dur: 0.02, vol: s % 4 === 2 ? 0.07 : 0.035, filter: 'highpass', freq: 9000, delay });
+      if (s === 14 || (s === 6 && bar % 2 === 1)) this.tone({ ...m, type: 'sine', freq: 140, to: 42, dur: 0.12, vol: 0.45, delay });
+    }
+
+    // Aufbau: Kick auf jede Viertel, Snare immer dichter und lauter, darüber ein Rauschen, das ansteigt
+    if (L.drums === 'build') {
+      if (s % 4 === 0) this.tone({ ...m, type: 'sine', freq: 150, to: 42, dur: 0.14, vol: 0.65, delay });
+      const every = bar < 2 ? 4 : bar === 2 ? 2 : 1;
+      if (s % every === 0 && (bar > 0 || s % 8 === 4)) {
+        const v = 0.08 + ((bar * 16 + s) / 64) * 0.25;
+        this.noise({ ...m, dur: 0.06, vol: v, filter: 'bandpass', freq: 1800 + bar * 300, delay });
+      }
+      if (step === 0) this.noise({ ...m, dur: len * 64, vol: 0.05, filter: 'bandpass', freq: 400, to: 9000, q: 1.5, delay });
+    }
+
+    // Wirbel am Ende des vierten Takts: absteigende Toms und Snare
+    if (L.fill && bar === 3 && s >= 12) {
+      this.tone({ ...m, type: 'sine', freq: [240, 190, 150, 115][s - 12], to: 60, dur: 0.16, vol: 0.45, delay });
+      this.noise({ ...m, dur: 0.05, vol: 0.12 + (s - 12) * 0.04, filter: 'bandpass', freq: 2000, delay });
+    }
+
+    // Becken beim Wiedereinsatz nach ruhigen Teilen oder dem Aufbau
+    const prev = this.prevSection;
+    const reentry = prev && (prev.drums === 'off' || prev.drums === 'build') && L.drums !== 'off' && L.drums !== 'build';
+    if (step === 0 && reentry) {
+      this.noise({ ...m, dur: 1.4, vol: 0.16, filter: 'highpass', freq: 5000, reverb: 0.3, delay });
+      this.tone({ ...m, type: 'sine', freq: 150, to: 38, dur: 0.25, vol: 0.8, delay });
+    }
+  }
+}
+
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
 }

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { FIELD, SCROLL_SPEED } from '../config';
-import { randRange } from '../core/view';
+import { nearest, randRange, type Target } from '../core/view';
 import { makePixelTexture, PixelSprite } from '../gfx/pixel';
 import { COIN_FRAMES, COIN_PALETTE } from '../gfx/sprites';
 
@@ -53,13 +53,16 @@ export class Pickups {
   }
 
   /** Bewegt alle Münzen und gibt zurück, wie viele das Schiff eingesammelt hat. */
-  update(dt: number, px: number, py: number, playerAlive: boolean): number {
+  update(dt: number, targets: readonly Target[]): number {
     let collected = 0;
     for (const c of this.coins) {
       if (!c.active) continue;
       c.age += dt;
-      const dx = px - c.x;
-      const dy = py - c.y;
+      // Zum nächsten Schiff ziehen
+      const t = nearest(targets, c.x, c.y);
+      const playerAlive = t !== null;
+      const dx = (t?.x ?? 0) - c.x;
+      const dy = (t?.y ?? 0) - c.y;
       const dist = Math.hypot(dx, dy);
 
       const magnet = MAGNET_RADIUS * this.magnetMul;

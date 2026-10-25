@@ -94,7 +94,7 @@ export class Kristallschwarm extends BossBase {
   }
 
   protected onStart(): void {
-    this.coreMax = this.coreHp = 100 * this.diff.hp;
+    this.coreMax = this.coreHp = 100 * this.hpMul;
     for (const s of this.shards) Object.assign(s, { hp: 2 * this.diff.hp, alive: true, regrow: 0, flash: 0 });
     for (const s of this.sprites()) s.visible = true;
     this.pulseTimer = 6;

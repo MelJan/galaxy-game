@@ -1,7 +1,7 @@
 import { bayer, hash2, Painter } from './painter';
 import type { Palette } from './pixel';
 
-/** Sektor 5 „Terranische Miliz“: Stahlgrau, Oliv, Warnorange, dazu Felsbraun und eine Edelstahl-Rakete. */
+/** Sektor 5 „Gürtel-Miliz“: Stahlgrau, Oliv, Warnorange, dazu Felsbraun und eine Militärrakete. */
 export const TERRAN_PALETTE: Palette = {
   k: 0x0a0c10, // Kontur
   1: 0x23282e, // Stahl, dunkel bis hell
@@ -20,8 +20,6 @@ export const TERRAN_PALETTE: Palette = {
   f: 0xff7a20,
   e: 0x26262e, // Düsen
   E: 0x55555f,
-  t: 0x101418, // Hitzeschild-Kacheln
-  T: 0x23282e,
   b: 0x3a2a1e, // Fels, dunkel bis hell
   B: 0x5a4430,
   d: 0x7e6448,
@@ -163,20 +161,29 @@ function bell(p: Painter, cx: number, top: number, h: number): void {
   }
 }
 
+/** Kampf-Oberstufe der Miliz: spitze Nase, olivgrüne Lackierung mit Warnstreifen, gepfeilte Heckflossen. */
 function paintShip(p: Painter): void {
-  // Nase und Rumpf
-  p.ellipse(16, 12, 10, 12, STEEL);
-  p.rect(6, 12, 21, 32, STEEL);
-  // Vordere und hintere Klappen
-  p.poly([[6, 10], [2, 13], [2, 18], [6, 18]], STEEL);
-  p.poly([[26, 10], [30, 13], [30, 18], [26, 18]], STEEL);
-  p.poly([[6, 32], [0, 36], [0, 44], [6, 44]], STEEL);
-  p.poly([[26, 32], [32, 36], [32, 44], [26, 44]], STEEL);
-  shadeCylinder(p, 6, 26);
-  // Hitzeschild: schwarze Kacheln auf der linken Seite
-  p.map((ch, x, y) => (ch >= '1' && ch <= '5' && x >= 6 && x <= 11 && y > 4 && y < 44 ? ((x + y) % 3 === 0 ? 'T' : 't') : ch));
-  // Fensterreihe
-  for (let y = 16; y < 24; y += 3) p.set(18, y, 'C');
+  // Spitze, ogivenförmige Nase und schlanker Rumpf
+  p.poly([[16.5, 0], [24, 10], [26, 18], [7, 18], [9, 10]], STEEL);
+  p.rect(7, 18, 19, 26, STEEL);
+  // Gepfeilte Heckflossen und kleine Steuerflügel an der Nase
+  p.poly([[7, 30], [0, 40], [0, 45], [7, 42]], STEEL);
+  p.poly([[26, 30], [33, 40], [33, 45], [26, 42]], STEEL);
+  p.poly([[8, 15], [4, 19], [8, 20]], STEEL);
+  p.poly([[25, 15], [29, 19], [25, 20]], STEEL);
+  shadeCylinder(p, 7, 26);
+  // Tarnlackierung: Oliv auf dem Rumpf, Nase grau
+  p.map((ch, x, y) => (ch >= '1' && ch <= '4' && y > 18 && y < 44 && x > 7 && x < 26 ? (Number(ch) >= 3 ? 'G' : 'g') : ch));
+  // Warnstreifen an Nase und Heck
+  for (let x = 8; x <= 25; x++) {
+    if (p.filled(x, 18)) p.set(x, 18, (x >> 1) % 2 ? 'y' : 'k');
+    if (p.filled(x, 40)) p.set(x, 40, (x >> 1) % 2 ? 'y' : 'k');
+  }
+  // Abzeichen: oranger Winkel, Cockpit-Sichtfenster
+  p.line(13, 26, 16, 29, 'O');
+  p.line(16, 29, 19, 26, 'O');
+  p.rect(14, 8, 5, 3, 'c');
+  p.set(15, 9, 'C');
   // Triebwerke der Oberstufe
   p.rect(9, 44, 15, 2, 'e');
   for (const x of SHIP_ENGINES) bell(p, x, 46, 5);

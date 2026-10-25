@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { FIELD } from '../config';
+import { nearest, type Target } from '../core/view';
 import { POWERUP_FRAMES, POWERUP_PALETTE, type PowerUpKind } from '../gfx/bossArt';
 import { makePixelTexture, PixelSprite } from '../gfx/pixel';
 
@@ -54,23 +55,26 @@ export class PowerUps {
   }
 
   /** Bewegt alle Kapseln und gibt die eingesammelten Typen zurück. */
-  update(dt: number, px: number, py: number, playerAlive: boolean): PowerUpKind[] {
-    const collected: PowerUpKind[] = [];
+  /** Gibt die eingesammelten Kapseln zurück, jeweils mit dem Index des Schiffs, das sie bekommen hat. */
+  update(dt: number, targets: readonly Target[]): { kind: PowerUpKind; who: number }[] {
+    const collected: { kind: PowerUpKind; who: number }[] = [];
     for (const c of this.capsules) {
       if (!c.active) continue;
       c.age += dt;
       c.y += c.vy * dt;
       c.x = c.baseX + Math.sin(c.age * 2.2) * 1.2;
 
-      const dx = px - c.x;
-      const dy = py - c.y;
+      const t = nearest(targets, c.x, c.y);
+      const playerAlive = t !== null;
+      const dx = (t?.x ?? 0) - c.x;
+      const dy = (t?.y ?? 0) - c.y;
       const dist = Math.hypot(dx, dy);
       if (playerAlive && dist < MAGNET_RADIUS) {
         c.baseX += (dx / dist) * 8 * dt;
         c.y += (dy / dist) * 8 * dt;
       }
       if (playerAlive && dist < PICKUP_RADIUS) {
-        collected.push(c.kind);
+        collected.push({ kind: c.kind, who: targets.indexOf(t!) });
         this.remove(c);
         continue;
       }

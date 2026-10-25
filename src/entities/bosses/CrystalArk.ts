@@ -16,7 +16,7 @@ import type { EnemyOutput } from '../Enemies';
 import { BossBase, type BossEvents, type BossTarget } from './BossBase';
 
 const GOLD_DEBRIS = new THREE.Color(0xe8c860);
-const PSI_DEBRIS = new THREE.Color(0x8ad8ff);
+const AETHER_DEBRIS = new THREE.Color(0x8ad8ff);
 const BEAM_COLOR = 0x6ab8ff;
 const DOWN = -Math.PI / 2;
 
@@ -32,6 +32,8 @@ const START_LENGTH = 3;
 const MAX_LENGTH = 6;
 /** Schaden, den eine Rune kurz hintereinander abbekommen muss, damit sie als gewählt gilt. */
 const GLYPH_CHARGE = 3;
+/** Eine Rune lädt sich nur auf, wenn ein Schiff höchstens so weit seitlich darunter steht. */
+const AIM_TOLERANCE = 1.4;
 /** So schnell verpufft eine angefangene Ladung wieder (pro Sekunde). */
 const GLYPH_DECAY = 2.5;
 
@@ -62,7 +64,7 @@ interface Lance {
 /**
  * Sektor 3, Kristallarche – ein Muster-Rätsel:
  * Vier Runenkristalle leuchten in einer Folge auf, jeder mit eigenem Ton. Wer sie in genau dieser Reihenfolge trifft,
- * bringt den Schild für ein paar Sekunden zum Einsturz, dann ist der Psi-Kern verwundbar.
+ * bringt den Schild für ein paar Sekunden zum Einsturz, dann ist der Ätherkern verwundbar.
  * Ein falscher Treffer wird bestraft und die Folge wiederholt. Jede Runde wird die Folge länger.
  */
 export class CrystalArk extends BossBase {
@@ -104,7 +106,7 @@ export class CrystalArk extends BossBase {
   }
 
   protected onStart(): void {
-    this.coreMax = this.coreHp = 160 * this.diff.hp;
+    this.coreMax = this.coreHp = 160 * this.hpMul;
     this.length = START_LENGTH;
     this.ringTimer = 2;
     for (const l of this.tipLances) this.resetLance(l, 6);
@@ -174,7 +176,7 @@ export class CrystalArk extends BossBase {
         const off = Math.random() * Math.PI;
         for (let i = 0; i < 18; i++) {
           const a = off + (i / 18) * Math.PI * 2;
-          out.shots.push({ x: c.x, y: c.y, vx: Math.cos(a) * 8, vy: Math.sin(a) * 8, style: 'psi' });
+          out.shots.push({ x: c.x, y: c.y, vx: Math.cos(a) * 8, vy: Math.sin(a) * 8, style: 'aether' });
         }
       }
     }
@@ -183,7 +185,7 @@ export class CrystalArk extends BossBase {
       const c = this.world(ARK_MOUNTS.core);
       for (let i = 0; i < 24; i++) {
         const a = (i / 24) * Math.PI * 2;
-        out.shots.push({ x: c.x, y: c.y, vx: Math.cos(a) * 9, vy: Math.sin(a) * 9, style: 'psi' });
+        out.shots.push({ x: c.x, y: c.y, vx: Math.cos(a) * 9, vy: Math.sin(a) * 9, style: 'aether' });
       }
       for (const side of [-1, 1]) {
         const aim = Math.atan2(py - c.y, px - c.x) + side * 0.5;
@@ -210,7 +212,7 @@ export class CrystalArk extends BossBase {
           this.progress = 0;
           this.lastCorrect = -1;
           this.grace = INPUT_GRACE;
-          this.events.banner('JETZT', 'IN DER REIHENFOLGE TREFFEN');
+          this.events.banner('JETZT', 'UNTER DIE RUNE STELLEN · DER REIHE NACH');
         }
         break;
       case 'input':
@@ -236,6 +238,12 @@ export class CrystalArk extends BossBase {
     if (this.puzzle !== 'input' || this.grace > 0) return;
     // Nachzügler-Schüsse auf den zuletzt richtigen Kristall zählen nicht als Fehler
     if (i === this.lastCorrect) return;
+    // Es zählt nur die Rune direkt über einem Schiff: Flügelkanonen, Streufeuer und Drohnen streifen Nachbarrunen nur
+    const m = this.world(ARK_MOUNTS.glyphs[i]);
+    if (!this.players.some((p) => p.alive && Math.abs(p.x - m.x) < AIM_TOLERANCE)) {
+      this.events.sparks(m.x, m.y);
+      return;
+    }
     // Erst gezielter Beschuss wählt eine Rune, einzelne Streifschüsse nicht
     const g = this.glyphs[i];
     g.charge += damage;
@@ -262,7 +270,7 @@ export class CrystalArk extends BossBase {
     this.events.sfx('glyphSuccess');
     this.events.banner('SCHILD UNTEN', 'KERN TREFFEN');
     const c = this.world(ARK_MOUNTS.core);
-    this.events.explode(c.x, c.y, 2, PSI_DEBRIS);
+    this.events.explode(c.x, c.y, 2, AETHER_DEBRIS);
     this.events.shake(0.6);
   }
 
@@ -277,7 +285,7 @@ export class CrystalArk extends BossBase {
     const arms = open ? 3 : 2;
     for (let i = 0; i < arms; i++) {
       const a = this.spiralAngle + (i / arms) * Math.PI * 2;
-      out.shots.push({ x: c.x, y: c.y, vx: Math.cos(a) * 9, vy: Math.sin(a) * 9, style: 'psi' });
+      out.shots.push({ x: c.x, y: c.y, vx: Math.cos(a) * 9, vy: Math.sin(a) * 9, style: 'aether' });
     }
   }
 
@@ -322,7 +330,7 @@ export class CrystalArk extends BossBase {
     const list: BossTarget[] = [];
     const input = this.puzzle === 'input';
     this.glyphs.forEach((_g, i) => {
-      const m = this.world(ARK_MOUNTS.pylons[i]);
+      const m = this.world(ARK_MOUNTS.glyphs[i]);
       // Nur während der Eingabe zählen Treffer; sonst prallen sie ab
       list.push({ x: m.x, y: m.y, radius: 1.0, armor: !input, noMissile: true, hit: (dmg) => this.onGlyphHit(i, dmg) });
     });
@@ -349,7 +357,7 @@ export class CrystalArk extends BossBase {
   protected layout(): void {
     const fail = this.puzzle === 'fail' && Math.floor(this.puzzleTimer * 8) % 2 === 0;
     this.glyphs.forEach((g, i) => {
-      const m = this.world(ARK_MOUNTS.pylons[i]);
+      const m = this.world(ARK_MOUNTS.glyphs[i]);
       const lit = g.lit > 0 || g.done || this.puzzle === 'open';
       g.sprite.setFrame(fail ? 2 : lit ? 1 : 0);
       // Beim Aufladen glimmt die Rune auf

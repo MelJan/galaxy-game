@@ -1,5 +1,5 @@
 import type { Input } from '../core/Input';
-import { DIFFICULTIES } from '../game/Difficulty';
+import { DIFFICULTIES, difficultyIndex } from '../game/Difficulty';
 import { deleteSlot, formatTime, loadSlots, SLOT_COUNT, type SaveData } from '../game/SaveGame';
 
 export type SaveMenuMode = 'save' | 'load';
@@ -29,13 +29,18 @@ export class SaveMenu {
   private mode: SaveMenuMode = 'load';
   /** Slot, dessen Überschreiben gerade bestätigt werden muss. */
   private confirm = -1;
+  /** Maus erst nach echter Bewegung beachten: sonst wählt der ruhende Zeiger beim Öffnen einen Slot aus. */
+  private mouseArmed = false;
   isOpen = false;
 
   constructor(private readonly handlers: SaveMenuHandlers) {
+    this.root.addEventListener('mousemove', (e) => {
+      if (e.movementX !== 0 || e.movementY !== 0) this.mouseArmed = true;
+    });
     for (let i = 0; i < SLOT_COUNT; i++) {
       const row = document.createElement('button');
       row.className = 'slot';
-      row.addEventListener('mouseenter', () => this.select(i));
+      row.addEventListener('mouseenter', () => this.mouseArmed && this.select(i));
       row.addEventListener('click', () => {
         this.select(i);
         this.activate();
@@ -46,6 +51,7 @@ export class SaveMenu {
   }
 
   show(mode: SaveMenuMode): void {
+    this.mouseArmed = false;
     this.mode = mode;
     this.isOpen = true;
     this.confirm = -1;
@@ -128,7 +134,7 @@ export class SaveMenu {
       if (!s) {
         row.innerHTML = `${num}<span class="label empty">— LEER —</span>`;
       } else {
-        const d = DIFFICULTIES[s.difficulty] ?? DIFFICULTIES[0];
+        const d = DIFFICULTIES[difficultyIndex(s.difficulty) ?? 1];
         const stage = s.loop > 0 ? ` · STUFE ${s.loop + 1}` : '';
         const warn = this.confirm === i ? '<span class="confirm">ENTER: ÜBERSCHREIBEN?</span>' : '';
         row.innerHTML =

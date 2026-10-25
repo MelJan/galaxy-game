@@ -6,6 +6,7 @@ export interface TitleHandlers {
   start(difficulty: number): void;
   /** „Spiel laden“ gewählt. */
   load(): void;
+  credits(): void;
   move(): void;
 }
 
@@ -15,6 +16,9 @@ export class Title {
   private readonly list = document.getElementById('title-list')!;
   private readonly rows: HTMLElement[] = [];
   private selected = 0;
+  /** Gewählte Spieleranzahl (links/rechts umschalten). */
+  players = 1;
+  private readonly playersEl = document.getElementById('title-players')!;
   isOpen = false;
 
   constructor(private readonly handlers: TitleHandlers) {
@@ -40,6 +44,14 @@ export class Title {
     load.addEventListener('click', () => this.choose(DIFFICULTIES.length));
     this.list.append(load);
     this.rows.push(load);
+    const credits = document.createElement('button');
+    credits.className = 'difficulty load';
+    credits.style.setProperty('--accent', '#9ab8e0');
+    credits.innerHTML = '<span class="name">CREDITS</span><span class="desc">MITWIRKENDE UND LIZENZEN</span>';
+    credits.addEventListener('mouseenter', () => this.select(DIFFICULTIES.length + 1));
+    credits.addEventListener('click', () => this.choose(DIFFICULTIES.length + 1));
+    this.list.append(credits);
+    this.rows.push(credits);
   }
 
   private get canLoad(): boolean {
@@ -48,7 +60,16 @@ export class Title {
 
   private choose(i: number): void {
     if (i < DIFFICULTIES.length) this.handlers.start(i);
-    else if (this.canLoad) this.handlers.load();
+    else if (i === DIFFICULTIES.length) {
+      if (this.canLoad) this.handlers.load();
+    } else this.handlers.credits();
+  }
+
+  /** Eine Zeile weiter (dir = ±1), „Spiel laden“ überspringen, solange es nichts zu laden gibt. */
+  private step(dir: number): void {
+    let i = Math.max(0, Math.min(this.rows.length - 1, this.selected + dir));
+    if (i === DIFFICULTIES.length && !this.canLoad) i = Math.max(0, Math.min(this.rows.length - 1, i + dir));
+    this.select(i);
   }
 
   show(selected: number): void {
@@ -64,9 +85,14 @@ export class Title {
   }
 
   handleInput(input: Input): void {
-    const last = this.canLoad ? DIFFICULTIES.length : DIFFICULTIES.length - 1;
-    if (input.wasPressed('ArrowUp') || input.wasPressed('KeyW')) this.select(Math.max(0, this.selected - 1));
-    if (input.wasPressed('ArrowDown') || input.wasPressed('KeyS')) this.select(Math.min(last, this.selected + 1));
+    if (input.wasPressed('ArrowLeft') || input.wasPressed('ArrowRight') || input.wasPressed('KeyA') || input.wasPressed('KeyD')) {
+      this.players = this.players === 1 ? 2 : 1;
+      this.handlers.move();
+    }
+    this.renderPlayers(input.coopDevices);
+    if (input.wasPressed('Start')) this.choose(this.selected);
+    if (input.wasPressed('ArrowUp') || input.wasPressed('KeyW')) this.step(-1);
+    if (input.wasPressed('ArrowDown') || input.wasPressed('KeyS')) this.step(1);
     if (input.wasPressed('Enter') || input.wasPressed('Space')) this.choose(this.selected);
   }
 
@@ -75,6 +101,13 @@ export class Title {
     this.selected = i;
     this.handlers.move();
     this.refresh();
+  }
+
+  private renderPlayers([p1, p2]: [string, string]): void {
+    const html =
+      `<span class="${this.players === 1 ? 'on' : ''}">1 SPIELER</span><span class="${this.players === 2 ? 'on' : ''}">2 SPIELER</span>` +
+      (this.players === 2 ? `<small>SPIELER 1: ${p1} · SPIELER 2: ${p2}</small>` : '');
+    if (this.playersEl.innerHTML !== html) this.playersEl.innerHTML = html;
   }
 
   private refresh(): void {

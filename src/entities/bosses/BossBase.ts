@@ -31,6 +31,13 @@ export interface BossEvents {
 }
 
 export type BossSfx =
+  | 'honk'
+  | 'detach'
+  | 'reflect'
+  | 'teleport'
+  | 'tick'
+  | 'superCharge'
+  | 'superFire'
   | 'roar'
   | 'screech'
   | 'sever'
@@ -84,6 +91,8 @@ export abstract class BossBase {
   protected phaseTime = 0;
   protected rage = 1;
   protected diff: Difficulty = { hp: 1, fireRate: 1, speed: 1 };
+  /** Faktor dieses Bosses aus der Kampagnen-Abstimmung (BossTuning) auf die Lebenspunkte. */
+  private tune = 1;
   protected px = 0;
   protected py = 0;
   protected readonly hull: PixelSprite;
@@ -140,11 +149,31 @@ export abstract class BossBase {
   /** Zugstrahl: zieht den Spieler mit dieser Stärke Richtung (x, y). null = kein Zug. */
   pull: { x: number; y: number; strength: number } | null = null;
 
+  /** Aktive Spielerschüsse (von der Spiellogik gesetzt), z. B. damit Gegner ausweichen können. */
+  threats: readonly { x: number; y: number; active: boolean }[] = [];
+
+  /** Spielerschiffe (von der Spiellogik gesetzt), z. B. um zu prüfen, wer unter einem Ziel steht. */
+  players: readonly { x: number; alive: boolean }[] = [];
+
+  /** Zusatz zum Namen im Lebensbalken, z. B. ein Countdown. */
+  hudSuffix(): string {
+    return '';
+  }
+
   /** Schwerkraftquelle, die Geschosse krümmt (g) und im Radius absorb verschluckt. null = keine. */
   well: { x: number; y: number; g: number; absorb: number } | null = null;
 
-  start(diff: Difficulty): void {
+  /**
+   * Lebenspunkte-Faktor für alles, was zum Sieg zerstört werden muss: Schwierigkeit mal Kampagnen-Abstimmung.
+   * Kleinteile, die nachwachsen oder nur im Weg sind (Splitter, Trümmer, Torpedos, Greifer), nehmen nur diff.hp.
+   */
+  protected get hpMul(): number {
+    return this.diff.hp * this.tune;
+  }
+
+  start(diff: Difficulty, tune = 1): void {
     this.diff = diff;
+    this.tune = tune;
     this.phase = 'enter';
     this.time = this.phaseTime = 0;
     this.startY = FIELD.halfHeight + (this.h / 2) * PIXEL + 4;
@@ -201,7 +230,10 @@ export abstract class BossBase {
 
     if (this.phase === 'enter') {
       this.y = this.startY + (this.targetY - this.startY) * easeOut(this.phaseTime / ENTER_TIME);
-      if (this.phaseTime >= ENTER_TIME) this.setPhase('fight');
+      if (this.phaseTime >= ENTER_TIME) {
+        this.setPhase('fight');
+        if (this.hint) this.events.banner(this.hint[0], this.hint[1]);
+      }
     } else {
       // Bleibt oben stehen und wippt nur leicht
       this.y = this.targetY + Math.sin(this.time * 0.9) * 0.25;
@@ -249,6 +281,9 @@ export abstract class BossBase {
   protected deathCenter(): { x: number; y: number } {
     return { x: this.x, y: this.y };
   }
+
+  /** Hinweis-Banner zu Kampfbeginn (wie man den Boss besiegt), null = keiner. */
+  protected hint: [string, string] | null = null;
 
   /** Eigener Text für das Sieg-Banner (sonst „<NAME> ZERSTÖRT“). */
   defeatTitle: string | null = null;
@@ -339,6 +374,11 @@ export abstract class BossBase {
       }
     }
     return best;
+  }
+
+  /** Aktuell verwundbare Punkte (für den Test-Autopiloten). */
+  vulnerableTargets(): readonly BossTarget[] {
+    return this.cachedTargets.filter((t) => !t.armor);
   }
 
   /** Ziele für Zielsuch-Raketen. */

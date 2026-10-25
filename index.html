@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Galaxy Game</title>
     <link rel="icon" href="data:," />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
@@ -16,7 +13,8 @@
       <div class="hud-top">
         <div class="hud-left">
           <span>SCORE <b id="score">0000000</b></span>
-          <span class="hull-row">HÜLLE <span id="hull"></span></span>
+          <span class="hull-row"><span id="hull-label">HÜLLE</span> <span id="hull"></span></span>
+          <span class="hull-row p2 hidden" id="hull2-row">P2 <span id="hull2"></span></span>
           <span id="powerups"></span>
         </div>
         <div class="hud-right">
@@ -32,10 +30,10 @@
       </div>
       <div id="banner" class="hidden"></div>
       <div id="hint">
-        WASD / Pfeiltasten: bewegen &middot; Leertaste: schießen &middot; P: Pause<br />
+        WASD / Pfeiltasten: bewegen &middot; Leertaste: schießen &middot; P: Pause &middot; Controller: Stick, A, Start<br />
         G: Grafik smooth/retro &middot; M: Musik &middot; N: Ton
       </div>
-      <div id="pause" class="hidden">PAUSE<small>P: WEITER &middot; S: SPEICHERN</small></div>
+      <div id="pause" class="hidden">PAUSE<small>P / START: WEITER &middot; S / Y: SPEICHERN</small></div>
       <div id="saves" class="hidden">
         <div class="saves-panel">
           <div id="saves-title"></div>
@@ -45,9 +43,27 @@
       </div>
       <div id="title" class="hidden">
         <div class="title-logo">GALAXY<br />GAME</div>
+        <div id="title-players"></div>
         <div class="title-label">SCHWIERIGKEIT</div>
         <div id="title-list"></div>
-        <div class="title-hint">PFEILTASTEN: WÄHLEN &middot; ENTER / LEERTASTE: STARTEN</div>
+        <div class="title-hint">HOCH/RUNTER: SCHWIERIGKEIT &middot; LINKS/RECHTS: SPIELER &middot; ENTER / A: STARTEN</div>
+      </div>
+      <div id="credits" class="hidden">
+        <div class="saves-panel credits-panel">
+          <div class="credits-title">CREDITS</div>
+          <p>GALAXY GAME</p>
+          <p class="dim">GRAFIK, SOUNDEFFEKTE UND MUSIK SIND VOLLSTÄNDIG IM CODE ERZEUGT.</p>
+          <div class="credits-head">VERWENDETE SOFTWARE</div>
+          <p>THREE.JS<br /><span class="dim">© 2010–2026 THREE.JS AUTHORS · MIT-LIZENZ</span></p>
+          <p>
+            PRESS START 2P (SCHRIFT) VON CODEMAN38<br /><span class="dim">© 2012 THE PRESS START 2P PROJECT AUTHORS · SIL OPEN FONT LICENSE 1.1</span>
+          </p>
+          <p class="dim">
+            VOLLSTÄNDIGE LIZENZTEXTE:
+            <a href="licenses/THIRD_PARTY_NOTICES.txt" target="_blank" rel="noopener">LICENSES/THIRD_PARTY_NOTICES.TXT</a>
+          </p>
+          <div id="saves-hint">ESC / ENTER: ZURÜCK</div>
+        </div>
       </div>
       <div id="shop" class="hidden">
         <div class="shop-panel">

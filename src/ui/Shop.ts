@@ -38,6 +38,8 @@ export class Shop {
   private readonly saveBtn = document.getElementById('shop-save')!;
   private readonly cards: HTMLElement[] = [];
   private focus = 0;
+  /** Maus erst nach echter Bewegung beachten (siehe SaveMenu). */
+  private mouseArmed = false;
   isOpen = false;
 
   constructor(private readonly handlers: ShopHandlers) {
@@ -54,7 +56,7 @@ export class Shop {
         el.className = cls;
         card.append(el);
       }
-      card.addEventListener('mouseenter', () => this.setFocus(i));
+      card.addEventListener('mouseenter', () => this.mouseArmed && this.setFocus(i));
       card.addEventListener('click', () => {
         this.setFocus(i);
         this.activate();
@@ -62,13 +64,17 @@ export class Shop {
       this.grid.append(card);
       this.cards.push(card);
     });
-    this.continueBtn.addEventListener('mouseenter', () => this.setFocus(UPGRADES.length));
+    this.root.addEventListener('mousemove', (e) => {
+      if (e.movementX !== 0 || e.movementY !== 0) this.mouseArmed = true;
+    });
+    this.continueBtn.addEventListener('mouseenter', () => this.mouseArmed && this.setFocus(UPGRADES.length));
     this.continueBtn.addEventListener('click', () => this.handlers.close());
-    this.saveBtn.addEventListener('mouseenter', () => this.setFocus(UPGRADES.length + 1));
+    this.saveBtn.addEventListener('mouseenter', () => this.mouseArmed && this.setFocus(UPGRADES.length + 1));
     this.saveBtn.addEventListener('click', () => this.handlers.save());
   }
 
   show(): void {
+    this.mouseArmed = false;
     this.isOpen = true;
     this.focus = 0;
     this.root.classList.remove('hidden');

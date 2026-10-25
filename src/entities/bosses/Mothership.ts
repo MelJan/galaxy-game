@@ -112,7 +112,7 @@ export class Mothership extends BossBase {
   }
 
   protected onStart(): void {
-    const hp = this.diff.hp;
+    const hp = this.hpMul;
     this.orbit = 0;
     this.coreHp = 60 * hp;
     this.coreTimer = 1.5;
@@ -351,11 +351,11 @@ export class Mothership extends BossBase {
   health(): number {
     if (this.phase === 'enter') return 1;
     if (this.phase === 'fight') {
-      const max = this.cannons.reduce((n, c) => n + (c.side === 0 ? 45 : 35), 0) * this.diff.hp + ESCORT_COUNT * 4 * this.diff.hp;
+      const max = this.cannons.reduce((n, c) => n + (c.side === 0 ? 45 : 35), 0) * this.hpMul + ESCORT_COUNT * 4 * this.hpMul;
       const left = this.cannons.reduce((n, c) => n + Math.max(0, c.alive ? c.hp : 0), 0) + this.escorts.reduce((n, e) => n + (e.alive ? Math.max(0, e.hp) : 0), 0);
       return 0.5 + 0.5 * (left / max);
     }
-    return 0.5 * Math.max(0, this.coreHp) / (60 * this.diff.hp);
+    return 0.5 * Math.max(0, this.coreHp) / (60 * this.hpMul);
   }
 
   protected touchExtra(px: number, py: number, r: number): boolean {

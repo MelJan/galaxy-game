@@ -1,4 +1,5 @@
 import { FIELD } from '../config';
+import { DEV } from '../dev/flags';
 import type { Difficulty, EnemyTypeId, PatternId, PatternParams } from '../entities/Enemies';
 
 /**
@@ -23,16 +24,33 @@ interface SpawnGroup {
   freq?: number;
 }
 
-export type BossId = 'mothership' | 'queen' | 'ark' | 'urschleim' | 'starship' | 'fortress' | 'shardswarm' | 'singularity' | 'leviathan';
+export type BossId =
+  | 'mothership'
+  | 'queen'
+  | 'ark'
+  | 'urschleim'
+  | 'rocket'
+  | 'fortress'
+  | 'shardswarm'
+  | 'singularity'
+  | 'leviathan'
+  | 'cabrio'
+  | 'kosmograd'
+  | 'unitas'
+  | 'squadron'
+  | 'odysseus'
+  | 'worldbreaker';
 
 export interface Sector {
+  /** Stabile ID für Spielstände (nie ändern, auch wenn Name oder Reihenfolge sich ändern). */
+  id: string;
   name: string;
   subtitle: string;
   waves: SpawnGroup[][];
   boss: BossId;
   bossName: string;
-  /** Optionaler Zwischenboss nach der Welle mit diesem Index (ab 1). */
-  midBoss?: { after: number; boss: BossId; name: string };
+  /** Optionale Zwischenbosse, jeweils nach der Welle mit diesem Index (ab 1). */
+  midBosses?: { after: number; boss: BossId; name: string }[];
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
@@ -59,6 +77,15 @@ const jellies = (at: number, count: number, x = -0.6, dx = 0.3, every = 0.6): Sp
   at, type: 'jelly', pattern: 'sine', count, every, x, dx, amp: 2, freq: 0.8, speed: 3,
 });
 
+/** Weltraumschrott, der geradeaus herabtreibt. */
+const junk = (at: number, count: number, x = -0.6, dx = 0.2, every = 0.4): SpawnGroup => ({
+  at, type: 'junk', pattern: 'line', count, every, x, dx, speed: 5,
+});
+/** Gabelflügler in Sinuskurven (weichen zusätzlich ruckartig aus). */
+const forks = (at: number, count: number, x = 0): SpawnGroup => ({
+  at, type: 'forkfighter', pattern: 'sine', count, every: 0.45, x, amp: 5, freq: 1, speed: 5,
+});
+
 /** Schwarm von oben, der den Spieler verfolgt. */
 const swarm = (at: number, count: number, x = 0, dx = 0.12, every = 0.12, speed = 9): SpawnGroup => ({
   at, type: 'swarmling', pattern: 'chase', count, every, x, dx, speed, hold: 3.2,
@@ -66,6 +93,7 @@ const swarm = (at: number, count: number, x = 0, dx = 0.12, every = 0.12, speed 
 
 export const SECTORS: Sector[] = [
   {
+    id: 'empire',
     name: 'SEKTOR 1',
     subtitle: 'IMPERIALE GRENZE',
     boss: 'mothership',
@@ -134,6 +162,7 @@ export const SECTORS: Sector[] = [
     ],
   },
   {
+    id: 'swarm',
     name: 'SEKTOR 2',
     subtitle: 'DER SCHWARM',
     boss: 'queen',
@@ -178,6 +207,7 @@ export const SECTORS: Sector[] = [
     ],
   },
   {
+    id: 'ascended',
     name: 'SEKTOR 3',
     subtitle: 'DIE AUFGESTIEGENEN',
     boss: 'ark',
@@ -222,6 +252,7 @@ export const SECTORS: Sector[] = [
     ],
   },
   {
+    id: 'slime',
     name: 'SEKTOR 4',
     subtitle: 'DER SCHLEIM',
     boss: 'urschleim',
@@ -267,11 +298,12 @@ export const SECTORS: Sector[] = [
     ],
   },
   {
+    id: 'militia',
     name: 'SEKTOR 5',
-    subtitle: 'TERRANISCHE MILIZ',
+    subtitle: 'GÜRTEL-MILIZ',
     boss: 'fortress',
     bossName: 'ASTEROIDENFESTUNG',
-    midBoss: { after: 4, boss: 'starship', name: 'STAHLRAKETE' },
+    midBosses: [{ after: 4, boss: 'rocket', name: 'STAHLRAKETE' }],
     waves: [
       // 1: Abfangjäger im Überflug
       [strafe(0, 4, 1, 0.55), strafe(2.5, 4, -1, 0.3)],
@@ -320,6 +352,7 @@ export const SECTORS: Sector[] = [
     ],
   },
   {
+    id: 'crystal',
     name: 'SEKTOR 6',
     subtitle: 'KRISTALLWESEN',
     boss: 'shardswarm',
@@ -364,6 +397,7 @@ export const SECTORS: Sector[] = [
     ],
   },
   {
+    id: 'void',
     name: 'SEKTOR 7',
     subtitle: 'DER EREIGNISHORIZONT',
     boss: 'singularity',
@@ -411,6 +445,7 @@ export const SECTORS: Sector[] = [
     ],
   },
   {
+    id: 'deep',
     name: 'SEKTOR 8',
     subtitle: 'DIE KOSMISCHE TIEFE',
     boss: 'leviathan',
@@ -454,6 +489,118 @@ export const SECTORS: Sector[] = [
       ],
     ],
   },
+  {
+    id: 'orbit',
+    name: 'SEKTOR 9',
+    subtitle: 'ORBITALFRIEDHOF',
+    boss: 'unitas',
+    bossName: 'STATION UNITAS',
+    midBosses: [
+      { after: 3, boss: 'cabrio', name: 'STERNENCABRIO' },
+      { after: 6, boss: 'kosmograd', name: 'KOSMOGRAD' },
+    ],
+    waves: [
+      // 1: treibender Schrott, zwei alte Satelliten
+      [
+        junk(0, 10, -0.8, 0.18),
+        { at: 2, type: 'satellite', pattern: 'hover', count: 2, every: 0.6, x: -0.5, dx: 1, stopY: 0.6, hold: 9 },
+      ],
+      // 2: Satellitenkette
+      [
+        { at: 0, type: 'satellite', pattern: 'hover', count: 3, every: 0.5, x: -0.6, dx: 0.6, stopY: 0.55, hold: 10 },
+        { at: 3, type: 'junk', pattern: 'sine', count: 8, every: 0.35, x: 0, amp: 6, freq: 1.2, speed: 5 },
+      ],
+      // 3: Funkbake im Trümmerfeld
+      [
+        { at: 0, type: 'beacon', pattern: 'hover', count: 1, every: 0, x: 0, stopY: 0.7, hold: 12 },
+        { at: 1, type: 'rockBig', pattern: 'line', count: 3, every: 1.2, x: -0.6, dx: 0.6, speed: 4 },
+        junk(3, 8, 0.8, -0.2, 0.3),
+      ],
+      // 4: Satelliten unten, Baken oben
+      [
+        { at: 0, type: 'satellite', pattern: 'hover', count: 2, every: 0.6, x: -0.7, dx: 1.4, stopY: 0.45, hold: 10 },
+        { at: 1.5, type: 'beacon', pattern: 'hover', count: 2, every: 0.8, x: -0.3, dx: 0.6, stopY: 0.75, hold: 10 },
+      ],
+      // 5: Trümmersturm
+      [
+        { at: 0, type: 'rockSmall', pattern: 'line', count: 12, every: 0.3, x: -0.9, dx: 0.15, speed: 7 },
+        junk(0.2, 12, 0.9, -0.15, 0.3),
+        { at: 3, type: 'satellite', pattern: 'hover', count: 2, every: 0.6, x: -0.4, dx: 0.8, stopY: 0.6, hold: 9 },
+      ],
+      // 6: Bakenring
+      [
+        { at: 0, type: 'beacon', pattern: 'hover', count: 3, every: 0.6, x: -0.6, dx: 0.6, stopY: 0.65, hold: 11 },
+        { at: 2, type: 'satellite', pattern: 'sine', count: 4, every: 0.8, x: 0, amp: 5, freq: 0.6, speed: 3 },
+      ],
+      // 7: Satellitenwand
+      [
+        { at: 0, type: 'satellite', pattern: 'hover', count: 4, every: 0.4, x: -0.75, dx: 0.5, stopY: 0.55, hold: 11 },
+        junk(2, 10, -0.8, 0.17, 0.3),
+        { at: 4, type: 'rockBig', pattern: 'line', count: 3, every: 1, x: 0.6, dx: -0.6, speed: 4.5 },
+      ],
+      // 8: letzte Welle vor der Station
+      [
+        { at: 0, type: 'beacon', pattern: 'hover', count: 2, every: 0.6, x: -0.5, dx: 1, stopY: 0.75, hold: 13 },
+        { at: 1, type: 'satellite', pattern: 'hover', count: 3, every: 0.5, x: -0.6, dx: 0.6, stopY: 0.5, hold: 11 },
+        junk(4, 12, 0, 0.12, 0.25),
+      ],
+    ],
+  },
+  {
+    id: 'fleet',
+    name: 'SEKTOR 10',
+    subtitle: 'DIE STERNENFLOTTEN',
+    boss: 'worldbreaker',
+    bossName: 'WELTENBRECHER',
+    midBosses: [
+      { after: 3, boss: 'squadron', name: 'REBELLENSTAFFEL' },
+      { after: 6, boss: 'odysseus', name: 'ODYSSEUS' },
+    ],
+    waves: [
+      // 1: Gabelflügler in zwei Wellen
+      [forks(0, 6, -0.4), forks(3, 6, 0.4)],
+      // 2: Kanonenboot mit Begleitschutz
+      [
+        { at: 0, type: 'gunboat', pattern: 'hover', count: 1, every: 0, x: 0, stopY: 0.6, hold: 12 },
+        { at: 1, type: 'forkfighter', pattern: 'line', count: 6, every: 0.5, x: -0.7, dx: 0.28, speed: 6 },
+      ],
+      // 3: Abfangjäger und lauernde Gabelflügler
+      [
+        strafe(0, 4, 1, 0.5),
+        { at: 2, type: 'forkfighter', pattern: 'hover', count: 3, every: 0.5, x: -0.5, dx: 0.5, stopY: 0.55, hold: 9 },
+        strafe(4, 4, -1, 0.3),
+      ],
+      // 4: Gleiter der Aufgestiegenen als Verbündete der Flotte
+      [
+        { at: 0, type: 'glider', pattern: 'hover', count: 2, every: 0.6, x: -0.5, dx: 1, stopY: 0.65, hold: 10 },
+        forks(1.5, 8, 0),
+      ],
+      // 5: zwei Kanonenboote
+      [
+        { at: 0, type: 'gunboat', pattern: 'hover', count: 2, every: 0.6, x: -0.5, dx: 1, stopY: 0.6, hold: 12 },
+        strafe(3, 5, -1, 0.25),
+      ],
+      // 6: Geschwader
+      [
+        { at: 0, type: 'forkfighter', pattern: 'hover', count: 5, every: 0.3, x: -0.8, dx: 0.4, stopY: 0.6, hold: 10 },
+        forks(3, 6, 0.5),
+        forks(4, 6, -0.5),
+      ],
+      // 7: Flottenverband
+      [
+        { at: 0, type: 'gunboat', pattern: 'hover', count: 2, every: 0.6, x: -0.6, dx: 1.2, stopY: 0.7, hold: 13 },
+        { at: 1.5, type: 'glider', pattern: 'hover', count: 2, every: 0.6, x: -0.25, dx: 0.5, stopY: 0.4, hold: 10 },
+        strafe(4, 5, 1, 0.2),
+      ],
+      // 8: letzte Welle vor dem Weltenbrecher
+      [
+        { at: 0, type: 'gunboat', pattern: 'hover', count: 3, every: 0.5, x: -0.7, dx: 0.7, stopY: 0.65, hold: 14 },
+        forks(2, 8, -0.3),
+        strafe(4, 5, -1, 0.35),
+        forks(6, 8, 0.3),
+      ],
+    ],
+  },
 ];
 
 /** Ein Schritt im Ablauf: eine Welle oder ein Endgegner. */
@@ -463,7 +610,7 @@ const ENTRIES: Entry[] = SECTORS.flatMap((s, sector): Entry[] => {
   const list: Entry[] = [];
   s.waves.forEach((groups, i) => {
     list.push({ kind: 'wave', sector, groups });
-    if (s.midBoss && i + 1 === s.midBoss.after) list.push({ kind: 'boss', sector, boss: s.midBoss.boss, name: s.midBoss.name });
+    for (const mb of s.midBosses ?? []) if (i + 1 === mb.after) list.push({ kind: 'boss', sector, boss: mb.boss, name: mb.name });
   });
   list.push({ kind: 'boss', sector, boss: s.boss, name: s.bossName });
   return list;
@@ -489,6 +636,12 @@ export interface WaveEvents {
    */
   campaignComplete(): boolean;
 }
+
+/**
+ * Stabile Position im Ablauf für Spielstände: Sektor-ID plus Wellennummer im Sektor (ab 0) oder Boss-ID.
+ * Bleibt gültig, wenn in einem Update Wellen oder Sektoren hinzukommen oder sich die Reihenfolge ändert.
+ */
+export type SavePosition = { sector: string; wave: number } | { sector: string; boss: BossId };
 
 /** Fortschritt für einen Spielstand. */
 export interface WaveProgress {
@@ -517,22 +670,25 @@ export class WaveDirector {
 
   /** Faktor des gewählten Schwierigkeitsgrads auf die Lebenspunkte aller Gegner. */
   hpMul = 1;
+  /** Schwierigkeitsgrad: Faktoren auf Gegnerzahl, Feuertempo und Bewegung normaler Gegner. */
+  countMul = 1;
+  fireMul = 1;
+  speedMul = 1;
 
   get difficulty(): Difficulty {
-    return { hp: (1 + this.loop * 0.5) * this.hpMul, fireRate: 1 + this.loop * 0.25, speed: 1 + this.loop * 0.08 };
+    return { hp: (1 + this.loop * 0.5) * this.hpMul, fireRate: (1 + this.loop * 0.25) * this.fireMul, speed: (1 + this.loop * 0.08) * this.speedMul };
   }
 
   reset(): void {
     // Zum Testen: ?wave=12 startet bei Welle 12, ?boss=2 direkt beim zweiten Endgegner (?boss allein = erster)
-    const params = new URLSearchParams(location.search);
-    const start = Math.max(1, Math.floor(Number(params.get('wave') ?? 1)) || 1) - 1;
+    const start = (DEV.wave ?? 1) - 1;
     this.loop = Math.floor(start / WAVES_PER_LOOP);
     this.number = start;
     this.index = this.entryOfWave(start % WAVES_PER_LOOP) - 1;
-    if (params.has('boss')) {
+    if (DEV.boss !== null) {
       // ?boss=N: N-ter Endgegner in der Ablaufliste (Zwischenbosse mitgezählt)
       const bosses = ENTRIES.map((e, i) => (e.kind === 'boss' ? i : -1)).filter((i) => i >= 0);
-      const n = clamp(Math.floor(Number(params.get('boss') || 1)) || 1, 1, bosses.length);
+      const n = clamp(DEV.boss, 1, bosses.length);
       this.index = bosses[n - 1] - 1;
       this.number = ENTRIES.slice(0, bosses[n - 1]).filter((e) => e.kind === 'wave').length;
     }
@@ -573,6 +729,33 @@ export class WaveDirector {
     this.intermission = 1.5;
   }
 
+  /** Stabile Position zu einem Eintrag der Ablaufliste. */
+  static positionOf(entry: number): SavePosition {
+    const e = ENTRIES[((entry % ENTRIES.length) + ENTRIES.length) % ENTRIES.length];
+    const sector = SECTORS[e.sector].id;
+    if (e.kind === 'boss') return { sector, boss: e.boss };
+    const wave = ENTRIES.slice(0, ENTRIES.indexOf(e)).filter((x) => x.kind === 'wave' && x.sector === e.sector).length;
+    return { sector, wave };
+  }
+
+  /**
+   * Eintrag der Ablaufliste zu einer stabilen Position. Gibt es die Welle nicht mehr, geht es mit der letzten
+   * vorhandenen Welle des Sektors weiter, gibt es den Boss nicht mehr, mit dem Endgegner des Sektors.
+   * Ist der ganze Sektor verschwunden, beginnt es von vorn.
+   */
+  static entryOf(pos: SavePosition): number {
+    const sector = SECTORS.findIndex((s) => s.id === pos.sector);
+    if (sector < 0) return 0;
+    const ofSector = ENTRIES.map((e, i) => ({ e, i })).filter(({ e }) => e.sector === sector);
+    if ('boss' in pos) {
+      const exact = ofSector.find(({ e }) => e.kind === 'boss' && e.boss === pos.boss);
+      return (exact ?? ofSector[ofSector.length - 1]).i;
+    }
+    const waves = ofSector.filter(({ e }) => e.kind === 'wave');
+    if (waves.length === 0) return ofSector[0].i;
+    return waves[Math.max(0, Math.min(waves.length - 1, Math.floor(pos.wave)))].i;
+  }
+
   /** Automatischer Name für einen Spielstand. */
   static label(p: WaveProgress): string {
     const e = ENTRIES[p.entry % ENTRIES.length];
@@ -606,11 +789,14 @@ export class WaveDirector {
     if (entry.kind !== 'wave') return;
     let allSpawned = true;
     entry.groups.forEach((g, gi) => {
-      while (this.spawned[gi] < g.count && this.time >= g.at + this.spawned[gi] * g.every) {
-        this.spawnFrom(g, this.spawned[gi]);
+      // Weniger Gegner (Schwierigkeitsgrad): über die ganze Formation und Zeitspanne der Gruppe verteilt
+      const n = Math.max(1, Math.round(g.count * this.countMul));
+      const step = g.count / n;
+      while (this.spawned[gi] < n && this.time >= g.at + this.spawned[gi] * step * g.every) {
+        this.spawnFrom(g, Math.floor(this.spawned[gi] * step));
         this.spawned[gi]++;
       }
-      if (this.spawned[gi] < g.count) allSpawned = false;
+      if (this.spawned[gi] < n) allSpawned = false;
     });
 
     if (allSpawned && aliveEnemies === 0) {

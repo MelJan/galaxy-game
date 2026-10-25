@@ -19,6 +19,8 @@ import { FRIGATE_ROWS, INTERCEPTOR_ROWS, MINER_FRAMES, ROCK_BIG_ROWS, ROCK_SMALL
 import { BUD_FRAMES, CRYSTAL_PALETTE, PRISM_FRAMES, SHARD_FRAMES } from '../gfx/crystalArt';
 import { GRAVMINE_FRAMES, STALKER_ROWS, VOID_PALETTE, VOIDEYE_FRAMES, VOIDEYE_PUPIL_Y } from '../gfx/voidArt';
 import { ANGLER_FRAMES, DEEP_PALETTE, JELLY_FRAMES, URCHIN_ROWS } from '../gfx/deepArt';
+import { BEACON_FRAMES, JUNK_ROWS, ORBIT_PALETTE, SATELLITE_FRAMES } from '../gfx/orbitArt';
+import { FLEET_PALETTE, FORK_ROWS, GUNBOAT_ROWS } from '../gfx/fleetArt';
 
 export type EnemyTypeId =
   | 'drone'
@@ -49,10 +51,15 @@ export type EnemyTypeId =
   | 'stalker'
   | 'jelly'
   | 'angler'
-  | 'urchin';
+  | 'urchin'
+  | 'satellite'
+  | 'junk'
+  | 'beacon'
+  | 'forkfighter'
+  | 'gunboat';
 export type PatternId = 'line' | 'sine' | 'swoop' | 'hover' | 'chase' | 'warp' | 'bounce' | 'strafe' | 'zigzag' | 'lunge';
 /** Aussehen eines Gegnerschusses: bestimmt Sprite und Pool. */
-export type ShotStyle = 'normal' | 'boss' | 'acid' | 'psi' | 'orb' | 'slime' | 'tracer' | 'shard' | 'void' | 'bio' | 'spike';
+export type ShotStyle = 'normal' | 'boss' | 'acid' | 'aether' | 'orb' | 'slime' | 'tracer' | 'shard' | 'void' | 'bio' | 'spike' | 'bolt';
 
 interface FireConfig {
   /** Sekunden zwischen zwei Salven. */
@@ -108,6 +115,8 @@ interface EnemyType {
   deathRing?: { count: number; style: ShotStyle; speed: number };
   /** Nach `after` Sekunden: schlüpft als anderer Gegner (type) oder platzt in einen Geschossring (burst). */
   hatch?: { type?: EnemyTypeId; burst?: number; after: number };
+  /** Weicht in Abständen ruckartig zur Seite aus (Versatz auf die Bahn des Musters). */
+  jink?: { interval: number; distance: number };
 }
 
 const one = (rows: string[]) => [rows];
@@ -165,7 +174,7 @@ export const ENEMY_TYPES: Record<EnemyTypeId, EnemyType> = {
     coreRadius: 0.6,
   },
 
-  // Sektor 5: Terranische Miliz
+  // Sektor 5: Gürtel-Miliz
   interceptor: {
     frames: one(INTERCEPTOR_ROWS), palette: TERRAN_PALETTE, fps: 0, hp: 3, radius: 0.85, score: 250, coins: 2, explosion: 2, debris: 0x6a7a3a, material: 'metal',
     fire: { interval: 1.5, kind: 'burst', style: 'tracer', bulletSpeed: 20, muzzles: [[0, -6]] },
@@ -254,10 +263,41 @@ export const ENEMY_TYPES: Record<EnemyTypeId, EnemyType> = {
     deathRing: { count: 8, style: 'spike', speed: 10 },
   },
 
+  // Sektor 9: Orbitalfriedhof
+  satellite: {
+    frames: SATELLITE_FRAMES, palette: ORBIT_PALETTE, fps: 1.5, hp: 6, radius: 1.1, score: 450, coins: 3, explosion: 2, debris: 0xe8b840, material: 'metal',
+    fire: null, pool: 10, drop: 0.2,
+    lance: { interval: 3.8, charge: 1.1, fire: 0.9, width: 0.6, color: 0xff4a3a, tipY: -6 },
+  },
+  junk: {
+    frames: one(JUNK_ROWS), palette: ORBIT_PALETTE, fps: 0, hp: 2, radius: 0.65, score: 40, coins: 1, explosion: 1, debris: 0xc4c8d0, material: 'metal',
+    fire: null, pool: 50, drop: 0,
+    spin: 3,
+  },
+  beacon: {
+    frames: BEACON_FRAMES, palette: ORBIT_PALETTE, fps: 2, hp: 7, radius: 0.9, score: 500, coins: 4, explosion: 2, debris: 0x7ae8ff, material: 'metal',
+    fire: { interval: 2.6, kind: 'aimed', style: 'tracer', bulletSpeed: 15, muzzles: [[0, -2]] },
+    pool: 8, drop: 0.3,
+    spawner: { type: 'junk', interval: 2.6, speed: 9, hold: 0.7 },
+  },
+
+  // Sektor 10: Die Sternenflotten
+  forkfighter: {
+    frames: one(FORK_ROWS), palette: FLEET_PALETTE, fps: 0, hp: 3, radius: 0.85, score: 350, coins: 2, explosion: 2, debris: 0xe03a2a, material: 'metal',
+    fire: { interval: 1.4, kind: 'aimed', style: 'bolt', bulletSpeed: 21, muzzles: [[-6, -6], [6, -6]] },
+    pool: 20, drop: 0.08,
+    jink: { interval: 1.3, distance: 3.5 },
+  },
+  gunboat: {
+    frames: one(GUNBOAT_ROWS), palette: FLEET_PALETTE, fps: 0, hp: 16, radius: 1.4, score: 1100, coins: 7, explosion: 3, debris: 0x8c8a92, material: 'metal',
+    fire: { interval: 2, kind: 'spread', style: 'bolt', bulletSpeed: 15, muzzles: [[-5, -9], [5, -9]] },
+    pool: 6, drop: 1,
+  },
+
   // Sektor 3: Die Aufgestiegenen
   glider: {
     frames: one(GLIDER_ROWS), palette: ASCEND_PALETTE, fps: 0, hp: 4, radius: 1.0, score: 400, coins: 3, explosion: 2, debris: 0xe8c860, material: 'crystal',
-    fire: { interval: 1.1, kind: 'triple', style: 'psi', bulletSpeed: 17, muzzles: [[0, -6]] },
+    fire: { interval: 1.1, kind: 'triple', style: 'aether', bulletSpeed: 17, muzzles: [[0, -6]] },
     pool: 16, drop: 0.1,
   },
   guardian: {
@@ -307,7 +347,7 @@ export interface EnemyShot {
   amp?: number;
   freq?: number;
   phase?: number;
-  /** Optional: Zielsuche in rad/s (Psi-Kugeln). */
+  /** Optional: Zielsuche in rad/s (Ätherkugeln). */
   homing?: number;
   life?: number;
   /** Optional: Schwerkraft nach unten (Wurfgeschosse). */
@@ -402,6 +442,11 @@ export class Enemy {
   private lanceState: LanceState = 'idle';
   private lanceTimer = 0;
   private beam: Beam | null = null;
+  private jinkTimer = 0;
+  private jinkOffset = 0;
+  private jinkTarget = 0;
+  /** Im letzten Frame auf x aufgerechneter Versatz (wird vor dem Bewegen wieder abgezogen). */
+  private jinkApplied = 0;
 
   constructor(
     readonly typeId: EnemyTypeId,
@@ -439,6 +484,8 @@ export class Enemy {
     this.shieldDelay = 0;
     this.lanceState = 'idle';
     this.lanceTimer = t.lance ? t.lance.interval * randRange(0.5, 1) : 0;
+    this.jinkTimer = t.jink ? t.jink.interval * randRange(0.5, 1) : 0;
+    this.jinkOffset = this.jinkTarget = this.jinkApplied = 0;
 
     this.x = params.x;
     this.y = params.y0 ?? TOP();
@@ -552,6 +599,9 @@ export class Enemy {
     const p = this.params;
     const t = this.age;
     const top = TOP();
+    // Ausweich-Versatz abziehen, damit fortlaufend gerechnete Muster (line, chase, bounce) auf der echten Bahn bleiben
+    this.x -= this.jinkApplied;
+    this.jinkApplied = 0;
     switch (this.pattern) {
       case 'line':
         // Startet oben am Rand oder (beim Ausbrüten) an y0
@@ -674,8 +724,26 @@ export class Enemy {
         break;
       }
     }
+    if (this.type.jink) this.applyJink(dt);
     this.sprite.place(this.x, this.y);
     return this.y > BOTTOM();
+  }
+
+  /** Ruckartiges Ausweichen zur Seite, auf die feste Bahn des Musters aufgerechnet. */
+  private applyJink(dt: number): void {
+    const j = this.type.jink!;
+    this.jinkTimer -= dt;
+    if (this.jinkTimer <= 0) {
+      this.jinkTimer = j.interval * randRange(0.7, 1.3);
+      const wall = FIELD.halfWidth - 2;
+      const dir = Math.random() < 0.5 ? -1 : 1;
+      let target = this.jinkTarget + dir * j.distance;
+      if (Math.abs(this.x + target) > wall || Math.abs(target) > j.distance * 1.5) target = this.jinkTarget - dir * j.distance;
+      this.jinkTarget = THREE.MathUtils.clamp(target, -j.distance * 1.5, j.distance * 1.5);
+    }
+    this.jinkOffset += (this.jinkTarget - this.jinkOffset) * Math.min(1, dt * 9);
+    this.x += this.jinkOffset;
+    this.jinkApplied = this.jinkOffset;
   }
 
   /** Neue Position im oberen Feld wählen und einblenden. */

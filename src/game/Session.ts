@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import type { Sound } from '../audio/Sound';
-import { FIELD } from '../config';
+import { FIELD, PLAYER } from '../config';
 import type { Input } from '../core/Input';
-import { randRange } from '../core/view';
+import { nearest, randRange } from '../core/view';
 import { DEV } from '../dev/flags';
 import type { BossBase, BossEvents } from '../entities/bosses/BossBase';
 import { CrystalArk } from '../entities/bosses/CrystalArk';
@@ -14,6 +14,15 @@ import { Stahlrakete } from '../entities/bosses/Stahlrakete';
 import { Urschleim } from '../entities/bosses/Urschleim';
 import { Leviathan } from '../entities/bosses/Leviathan';
 import { Singularitaet } from '../entities/bosses/Singularitaet';
+import { Sternencabrio } from '../entities/bosses/Sternencabrio';
+import { Kosmograd } from '../entities/bosses/Kosmograd';
+import { Unitas } from '../entities/bosses/Unitas';
+import { Rebellenstaffel } from '../entities/bosses/Rebellenstaffel';
+import { Odysseus } from '../entities/bosses/Odysseus';
+import { Weltenbrecher } from '../entities/bosses/Weltenbrecher';
+import { BOLT_ROWS, FLEET_PALETTE } from '../gfx/fleetArt';
+import { Autopilot } from '../dev/Autopilot';
+import { BOSS_TUNING } from './BossTuning';
 import { VOID_BULLET_ROWS, VOID_PALETTE } from '../gfx/voidArt';
 import { BIO_BULLET_ROWS, DEEP_PALETTE, SPIKE_ROWS } from '../gfx/deepArt';
 import { SHARD_BULLET_ROWS, CRYSTAL_PALETTE } from '../gfx/crystalArt';
@@ -23,11 +32,12 @@ import { BulletPool, steer, sweptDistanceSq } from '../entities/Bullets';
 import { Enemies, type Enemy, type EnemyOutput, type ShotStyle } from '../entities/Enemies';
 import { Pickups } from '../entities/Pickups';
 import { Player } from '../entities/Player';
+import { SHIP_PALETTE, SHIP_PALETTE_P2 } from '../gfx/sprites';
 import { PowerUps, randomPowerUp } from '../entities/PowerUps';
 import { beamDistanceSq, Beams } from '../fx/Beams';
 import { explode, impactSparks } from '../fx/explode';
 import type { Particles } from '../fx/Particles';
-import { ASCEND_PALETTE, PSI_BOLT_ROWS, PSI_ORB_ROWS } from '../gfx/ascendArt';
+import { ASCEND_PALETTE, AETHER_BOLT_ROWS, AETHER_ORB_ROWS } from '../gfx/ascendArt';
 import { BOSS_BULLET_PALETTE, BOSS_BULLET_ROWS, MISSILE_ROWS, POWERUP_PALETTE, type PowerUpKind } from '../gfx/bossArt';
 import { BULLET_PALETTE, BULLET_ROWS, ENEMY_BULLET_PALETTE, ENEMY_BULLET_ROWS } from '../gfx/sprites';
 import { ACID_ROWS, SWARM_PALETTE } from '../gfx/swarmArt';
@@ -36,8 +46,8 @@ import { Shop, type BuyResult } from '../ui/Shop';
 import { Title } from '../ui/Title';
 import { SaveMenu } from '../ui/SaveMenu';
 import { writeSlot, type SaveData } from './SaveGame';
-import { DIFFICULTIES, loadDifficulty, saveDifficulty } from './Difficulty';
-import { Upgrades, type UpgradeDef } from './Upgrades';
+import { DIFFICULTIES, difficultyIndex, loadDifficulty, saveDifficulty } from './Difficulty';
+import { Upgrades, UPGRADES, type UpgradeDef, type UpgradeId } from './Upgrades';
 import { SECTORS, WaveDirector, type BossId } from './Waves';
 import { LASER_DPS, LASER_TIME, LASER_WIDTH, MISSILE_DAMAGE, MISSILE_TIME, OPTION_TIME, Weapons } from './Weapons';
 import { FAN_TIME, SHIELD_TIME } from '../entities/Player';
@@ -59,7 +69,7 @@ const RAM_DAMAGE = 6;
 const ENEMY_BULLET_RADIUS = 0.3;
 const PLAYER_BULLET_RADIUS = 0.25;
 const PLAYER_DEBRIS = new THREE.Color(0x6286cf);
-const PSI_SPARK = new THREE.Color(0x8ad8ff);
+const AETHER_SPARK = new THREE.Color(0x8ad8ff);
 const SHIELD_SPARK = new THREE.Color(0x5af0ff);
 const ACID_SPARK = new THREE.Color(0x9aff3a);
 const MEMBRANE_SPARK = new THREE.Color(0x6ad88a);
@@ -68,9 +78,25 @@ const REPAIR_BONUS = 500;
 
 type State = 'title' | 'playing' | 'dying' | 'gameover';
 
+/** Sekunden bis ein abgeschossener Spieler im Koop zurückkehrt. */
+const RESPAWN_TIME = 10;
+
+/** Ein Spieler: Schiff, Waffen, eigene Hülle. Gold, Score und Upgrades teilen sich alle. */
+interface Pilot {
+  ship: Player;
+  weapons: Weapons;
+  hull: number;
+  /** Nimmt am Durchlauf teil (Spieler 2 nur im Zweispieler-Modus). */
+  active: boolean;
+  /** Sekunden bis zur Rückkehr nach einem Abschuss (nur im Koop). */
+  respawn: number;
+}
+
 /** Ein Spieldurchlauf: Spieler, Gegner, Endgegner, Projektile, Strahlen, Münzen, Power-ups, Wellen, Punkte. */
 export class Session {
-  readonly player: Player;
+  private readonly pilots: Pilot[];
+  /** 1 oder 2 Spieler. */
+  private players = 1;
   private readonly playerBullets: BulletPool;
   private readonly missiles: BulletPool;
   /** Gegnerische Geschosse je Aussehen. */
@@ -80,7 +106,6 @@ export class Session {
   private readonly bosses: Record<BossId, BossBase>;
   private boss: BossBase | null = null;
   private bossName = '';
-  private readonly weapons: Weapons;
   private readonly pickups: Pickups;
   private readonly powerUps: PowerUps;
   private readonly waves: WaveDirector;
@@ -88,18 +113,29 @@ export class Session {
 
   private score = 0;
   private gold = 0;
-  private hull = 5;
   /** Dauerhafte Verbesserungen aus der Werft. */
   private readonly upgrades = new Upgrades();
   private readonly shop: Shop;
   private readonly title: Title;
   private readonly saveMenu: SaveMenu;
+  private creditsOpen = false;
   /** Gesetzt, wenn gerade alle Sektoren geschafft wurden: Name der neuen Stufe fürs Banner. */
   private pendingCampaign: string | null = null;
   /** Index in DIFFICULTIES. */
   private difficulty = loadDifficulty();
   /** Countdown bis die Werft öffnet (null = keine geplant). */
   private shopTimer: number | null = null;
+  /** Nur Entwicklung (?bot): Autopilot und Messwerte für das Balancing. */
+  private readonly bot = DEV.bot ? new Autopilot(DEV.botSkill) : null;
+  readonly devStats = {
+    time: 0,
+    hits: 0,
+    bossStart: 0,
+    bossHits: 0,
+    /** Treffer nach Quelle (Geschossart, Strahl, Gegnertyp, Boss). */
+    hitBy: {} as Record<string, number>,
+    bosses: [] as { name: string; wave: number; time: number; hits: number; maxHull: number; upgrades: string }[],
+  };
   private state: State = 'playing';
   private stateTimer = 0;
   private pendingSector: number | null = null;
@@ -120,14 +156,15 @@ export class Session {
       normal: new BulletPool(scene, 240, ENEMY_BULLET_ROWS, ENEMY_BULLET_PALETTE),
       boss: new BulletPool(scene, 360, BOSS_BULLET_ROWS, BOSS_BULLET_PALETTE),
       acid: new BulletPool(scene, 240, ACID_ROWS, SWARM_PALETTE),
-      psi: new BulletPool(scene, 360, PSI_BOLT_ROWS, ASCEND_PALETTE, true),
-      orb: new BulletPool(scene, 40, PSI_ORB_ROWS, ASCEND_PALETTE),
+      aether: new BulletPool(scene, 360, AETHER_BOLT_ROWS, ASCEND_PALETTE, true),
+      orb: new BulletPool(scene, 40, AETHER_ORB_ROWS, ASCEND_PALETTE),
       slime: new BulletPool(scene, 160, SLIMEBALL_ROWS, SLIME_PALETTE),
       tracer: new BulletPool(scene, 300, TRACER_ROWS, TERRAN_PALETTE, true),
       shard: new BulletPool(scene, 300, SHARD_BULLET_ROWS, CRYSTAL_PALETTE, true),
       void: new BulletPool(scene, 300, VOID_BULLET_ROWS, VOID_PALETTE),
       bio: new BulletPool(scene, 300, BIO_BULLET_ROWS, DEEP_PALETTE),
       spike: new BulletPool(scene, 120, SPIKE_ROWS, DEEP_PALETTE, true),
+      bolt: new BulletPool(scene, 300, BOLT_ROWS, FLEET_PALETTE, true),
     };
     this.beams = new Beams(scene);
     this.enemies = new Enemies(scene, this.beams);
@@ -137,17 +174,26 @@ export class Session {
       queen: new HiveQueen(scene, events, this.beams),
       ark: new CrystalArk(scene, events, this.beams),
       urschleim: new Urschleim(scene, events, this.beams),
-      starship: new Stahlrakete(scene, events, this.beams),
+      rocket: new Stahlrakete(scene, events, this.beams),
       fortress: new Asteroidenfestung(scene, events, this.beams),
       shardswarm: new Kristallschwarm(scene, events, this.beams),
       singularity: new Singularitaet(scene, events, this.beams),
       leviathan: new Leviathan(scene, events, this.beams),
+      cabrio: new Sternencabrio(scene, events, this.beams),
+      kosmograd: new Kosmograd(scene, events, this.beams),
+      unitas: new Unitas(scene, events, this.beams),
+      squadron: new Rebellenstaffel(scene, events, this.beams),
+      odysseus: new Odysseus(scene, events, this.beams),
+      worldbreaker: new Weltenbrecher(scene, events, this.beams),
     };
     this.pickups = new Pickups(scene);
     this.powerUps = new PowerUps(scene);
-    this.player = new Player(scene);
-    this.player.onFire = () => this.sound.shoot();
-    this.weapons = new Weapons(scene, this.beams, this.playerBullets, this.missiles, sound);
+    this.pilots = [SHIP_PALETTE, SHIP_PALETTE_P2].map((palette) => {
+      const ship = new Player(scene, palette);
+      ship.onFire = () => this.sound.shoot();
+      ship.stats = this.upgrades;
+      return { ship, weapons: new Weapons(scene, this.beams, this.playerBullets, this.missiles, sound), hull: 5, active: true, respawn: 0 };
+    });
     this.waves = new WaveDirector({
       spawn: (type, pattern, params, diff) => {
         this.enemies.spawn(type, pattern, params, diff);
@@ -159,9 +205,8 @@ export class Session {
       waveCleared: () => this.onWaveCleared(),
       campaignComplete: () => this.onCampaignComplete(),
     });
-    this.player.stats = this.upgrades;
     this.shop = new Shop({
-      state: () => ({ gold: this.gold, hull: this.hull, maxHull: this.maxHull, upgrades: this.upgrades }),
+      state: () => ({ gold: this.gold, hull: this.lowestHull, maxHull: this.maxHull, upgrades: this.upgrades }),
       buy: (def) => this.buy(def),
       close: () => this.closeShop(),
       save: () => this.saveMenu.show('save'),
@@ -170,6 +215,10 @@ export class Session {
     this.title = new Title({
       start: (i) => this.start(i),
       load: () => this.saveMenu.show('load'),
+      credits: () => {
+        this.creditsOpen = true;
+        document.getElementById('credits')!.classList.remove('hidden');
+      },
       move: () => this.sound.shopMove(),
     });
     this.saveMenu = new SaveMenu({
@@ -181,16 +230,82 @@ export class Session {
     });
 
     if (DEV.skipTitle) {
-      // Zum Testen direkt losfliegen: ?diff=0..4 wählt die Stufe, ?shop öffnet die Werft, ?gold=500 gibt Startgold
+      // Zum Testen direkt losfliegen: ?diff=0..4 wählt die Stufe, ?shop öffnet die Werft, ?gold=500 gibt Startgold,
+      // ?players=2 startet im Zweispieler-Modus
       if (DEV.difficulty !== null) this.difficulty = DEV.difficulty;
+      this.setPlayers(DEV.players);
+      for (const pl of this.pilots) if (pl.active) pl.ship.reset();
       this.applyDifficulty();
       this.gold = DEV.gold;
+      // ?boss=N: mit dem Gold starten, das man bis dahin ungefähr gesammelt hätte, und erst in die Werft
+      if (DEV.boss !== null && !DEV.gold) {
+        const w = this.waves.number;
+        this.gold = Math.round(17 * w * (1 + w / 80));
+        if (this.gold > 0) this.shopTimer = 0.5;
+      }
       if (DEV.shop) this.shopTimer = 0.5;
     } else {
       this.applyDifficulty();
+      this.setPlayers(1);
       this.state = 'title';
       this.title.show(this.difficulty);
     }
+    this.refreshHud();
+  }
+
+  // -------------------------------------------------------------------------
+  // Spieler
+  // -------------------------------------------------------------------------
+
+  /** Ein- oder Zweispieler: Spieler 2 ein- oder ausblenden, Startpositionen nebeneinander. */
+  private setPlayers(n: number): void {
+    this.players = n === 2 ? 2 : 1;
+    this.pilots[1].active = this.players === 2;
+    this.pilots[0].ship.startX = this.players === 2 ? -4 : 0;
+    this.pilots[1].ship.startX = 4;
+    if (!this.pilots[1].active) {
+      this.pilots[1].ship.destroy();
+      this.pilots[1].weapons.reset();
+    }
+    this.hud.setPlayers(this.players);
+  }
+
+  private get activePilots(): Pilot[] {
+    return this.pilots.filter((p) => p.active);
+  }
+
+  /** Schiffe aller Spieler im Durchlauf (Ziele für Gegner, Münzen, Kapseln). */
+  private get ships(): Player[] {
+    return this.activePilots.map((p) => p.ship);
+  }
+
+  /** Nächstes lebendes Schiff; wenn keins lebt, Spieler 1 (Gegner zielen dann ins Leere). */
+  private aimAt(x: number, y: number): Player {
+    return nearest(this.ships, x, y) ?? this.pilots[0].ship;
+  }
+
+  /** Mittelpunkt der lebenden Schiffe (für die Parallaxe des Hintergrunds). */
+  get focus(): { x: number; y: number } {
+    const alive = this.ships.filter((s) => s.alive);
+    const list = alive.length ? alive : [this.pilots[0].ship];
+    return { x: list.reduce((n, s) => n + s.x, 0) / list.length, y: list.reduce((n, s) => n + s.y, 0) / list.length };
+  }
+
+  private get anyDamaged(): boolean {
+    return this.activePilots.some((p) => p.hull < this.maxHull);
+  }
+
+  private get lowestHull(): number {
+    return Math.min(...this.activePilots.map((p) => p.hull));
+  }
+
+  /** Im Koop: abgeschossener Spieler kehrt mit halber Hülle zurück. */
+  private revive(pl: Pilot, index: number): void {
+    pl.ship.reset();
+    pl.ship.hit();
+    pl.hull = Math.ceil(this.maxHull / 2);
+    this.hud.showBanner(`SPIELER ${index + 1}`, 'IST WIEDER DABEI', false, 1800);
+    this.sound.powerUp('repair');
     this.refreshHud();
   }
 
@@ -199,6 +314,7 @@ export class Session {
     this.difficulty = difficulty;
     saveDifficulty(difficulty);
     this.title.hide();
+    this.setPlayers(this.title.players);
     this.restart();
     this.hud.showHint();
     this.sound.waveStart();
@@ -210,6 +326,9 @@ export class Session {
 
   private applyDifficulty(): void {
     this.waves.hpMul = this.setting.hp;
+    this.waves.countMul = this.setting.count;
+    this.waves.fireMul = this.setting.enemyFire;
+    this.waves.speedMul = this.setting.speed;
     this.hud.setDifficulty(this.setting.name, this.setting.color);
   }
 
@@ -243,17 +362,19 @@ export class Session {
   private saveTo(slot: number): void {
     const progress = this.waves.progress();
     const data: SaveData = {
-      version: 1,
+      version: 2,
       savedAt: new Date().toISOString(),
       label: WaveDirector.label(progress),
-      difficulty: this.difficulty,
+      difficulty: DIFFICULTIES[this.difficulty].id,
       loop: progress.loop,
-      entry: progress.entry,
+      position: WaveDirector.positionOf(progress.entry),
       waveNumber: progress.waveNumber,
       score: this.score,
       gold: this.gold,
-      hull: this.hull,
+      hull: this.pilots[0].hull,
       upgrades: this.upgrades.toJSON(),
+      players: this.players,
+      hull2: this.pilots[1].hull,
     };
     if (writeSlot(slot, data)) this.sound.shopBuy();
     else this.sound.shopDeny();
@@ -262,14 +383,16 @@ export class Session {
   private loadSave(data: SaveData): void {
     this.saveMenu.hide();
     this.title.hide();
+    this.setPlayers(data.players);
     this.restart();
-    this.difficulty = Math.max(0, Math.min(DIFFICULTIES.length - 1, data.difficulty));
+    this.difficulty = difficultyIndex(data.difficulty) ?? 1;
     this.applyDifficulty();
     this.upgrades.load(data.upgrades);
     this.score = data.score;
     this.gold = data.gold;
-    this.hull = Math.max(1, Math.min(this.maxHull, data.hull));
-    this.waves.restore({ entry: data.entry, waveNumber: data.waveNumber, loop: data.loop });
+    this.pilots[0].hull = Math.max(1, Math.min(this.maxHull, data.hull));
+    this.pilots[1].hull = Math.max(1, Math.min(this.maxHull, data.hull2));
+    this.waves.restore({ entry: WaveDirector.entryOf(data.position), waveNumber: data.waveNumber, loop: data.loop });
     this.hud.showBanner('SPIELSTAND GELADEN', data.label, false, 2500);
     this.sound.shopOpen();
     this.refreshHud();
@@ -280,7 +403,7 @@ export class Session {
    * Auf der höchsten Stufe steigt stattdessen die Runde (Gegner werden weiter härter).
    */
   private onCampaignComplete(): boolean {
-    this.hull = this.maxHull;
+    for (const pl of this.pilots) pl.hull = this.maxHull;
     if (this.difficulty < DIFFICULTIES.length - 1) {
       this.difficulty++;
       saveDifficulty(this.difficulty);
@@ -295,7 +418,7 @@ export class Session {
   }
 
   private get maxHull(): number {
-    return this.upgrades.maxHull;
+    return this.upgrades.maxHull + this.setting.hull;
   }
 
   /** Ist gerade die Werft offen? (Dann pausiert das Spielgeschehen.) */
@@ -318,12 +441,16 @@ export class Session {
     this.missiles.clear();
     for (const pool of Object.values(this.hostile)) pool.clear();
     this.beams.clear();
-    this.weapons.reset();
     this.pickups.clear();
     this.powerUps.clear();
     this.waves.reset();
     this.applyDifficulty();
-    this.player.reset();
+    for (const pl of this.pilots) {
+      pl.weapons.reset();
+      pl.respawn = 0;
+      if (pl.active) pl.ship.reset();
+      else pl.ship.destroy();
+    }
     this.sound.setMusic('normal');
     this.upgrades.reset();
     this.shop.hide();
@@ -332,16 +459,30 @@ export class Session {
     this.shopTimer = null;
     this.score = 0;
     this.gold = 0;
-    this.hull = this.maxHull;
+    for (const pl of this.pilots) pl.hull = this.maxHull;
     this.state = 'playing';
     this.hud.hideGameOver();
     this.refreshHud();
   }
 
   update(dt: number, input: Input): void {
+    this.devStats.time += dt;
+    // Musik-Intensität: ruhig im Titel, in Menüs und zwischen den Wellen, dichter je mehr Gegner da sind
+    const calm = this.state === 'title' || this.shop.isOpen || this.saveMenu.isOpen;
+    const busy = this.boss?.active ? 1 : Math.min(1, this.enemies.aliveCount / 10);
+    this.sound.setIntensity(calm ? 0.05 : busy, dt);
+
     // Speicher-/Lademenü liegt über allem
     if (this.saveMenu.isOpen) {
       this.saveMenu.handleInput(input);
+      return;
+    }
+    // Credits schließen mit Esc oder Enter
+    if (this.creditsOpen) {
+      if (input.wasPressed('Escape') || input.wasPressed('Enter') || input.wasPressed('Space')) {
+        this.creditsOpen = false;
+        document.getElementById('credits')!.classList.add('hidden');
+      }
       return;
     }
     // Auf dem Titelbildschirm läuft nur der Hintergrund
@@ -350,6 +491,10 @@ export class Session {
       return;
     }
     // In der Werft ruht das Spielgeschehen
+    if (this.shop.isOpen && this.bot) {
+      this.botShopping();
+      return;
+    }
     if (this.shop.isOpen) {
       this.shop.handleInput(input);
       return;
@@ -360,7 +505,7 @@ export class Session {
     }
 
     if (this.state === 'gameover') {
-      if (input.wasPressed('Enter')) this.restart();
+      if (input.wasPressed('Enter') || input.wasPressed('Start')) this.restart();
       else if (input.wasPressed('Escape')) this.toTitle();
     } else if (this.state === 'dying') {
       this.stateTimer -= dt;
@@ -371,43 +516,75 @@ export class Session {
       }
     }
 
-    const p = this.player;
     const boss = this.boss?.active ? this.boss : null;
     this.pickups.magnetMul = this.upgrades.magnetMul;
-    this.weapons.permanentDrones = this.upgrades.drones;
     // Unter dem Endgegner bleiben, nicht in seinen Rumpf hineinfliegen
     const bottom = boss?.bottom ?? null;
-    p.ceiling = bottom !== null ? Math.min(FIELD.halfHeight, bottom - 1.6) : null;
-    p.update(dt, input, this.playerBullets, this.fx.engine, this.fx.sparks, !this.weapons.laserActive);
-    // Traktorstrahl und Sog: ziehen das Schiff an, man kann dagegen ansteuern
-    const pullTo = (x: number, y: number, strength: number) => {
-      const dx = x - p.x;
-      const dy = y - p.y;
-      const d = Math.hypot(dx, dy) || 1;
-      p.position.x += (dx / d) * strength * dt;
-      p.position.y += (dy / d) * strength * dt;
-    };
-    if (p.alive) {
-      if (boss?.pull) pullTo(boss.pull.x, boss.pull.y, boss.pull.strength);
-      // Gravitationsminen ziehen umso stärker, je näher man ist
-      for (const e of this.enemies.all) {
-        const g = e.type.gravity;
-        if (!e.active || !g) continue;
-        const d = Math.hypot(e.x - p.x, e.y - p.y);
-        if (d < g.radius) pullTo(e.x, e.y, g.strength * (1 - d / g.radius));
+    const ceiling = bottom !== null ? Math.min(FIELD.halfHeight, bottom - 1.6) : null;
+    this.pilots.forEach((pl, i) => {
+      if (!pl.active) return;
+      const p = pl.ship;
+      const controls =
+        this.bot && i === 0
+          ? this.bot.controls(
+              {
+                x: p.x,
+                y: p.y,
+                hitRadius: p.hitRadius,
+                ceiling,
+                speed: PLAYER.speed * this.upgrades.speedMul,
+                bullets: Object.values(this.hostile).flatMap((pool) => pool.bullets),
+                bulletRadius: ENEMY_BULLET_RADIUS,
+                beams: this.beams.all,
+                enemies: this.enemies.all,
+                boss,
+              },
+              dt,
+            )
+          : input.controlsFor(i, this.players);
+      pl.weapons.permanentDrones = this.upgrades.drones;
+      p.ceiling = ceiling;
+      p.update(dt, controls, this.playerBullets, this.fx.engine, this.fx.sparks, !pl.weapons.laserActive);
+      // Traktorstrahl und Sog: ziehen das Schiff an, man kann dagegen ansteuern
+      const pullTo = (x: number, y: number, strength: number) => {
+        const dx = x - p.x;
+        const dy = y - p.y;
+        const d = Math.hypot(dx, dy) || 1;
+        p.position.x += (dx / d) * strength * dt;
+        p.position.y += (dy / d) * strength * dt;
+      };
+      if (p.alive) {
+        if (boss?.pull) pullTo(boss.pull.x, boss.pull.y, boss.pull.strength);
+        // Gravitationsminen ziehen umso stärker, je näher man ist
+        for (const e of this.enemies.all) {
+          const g = e.type.gravity;
+          if (!e.active || !g) continue;
+          const d = Math.hypot(e.x - p.x, e.y - p.y);
+          if (d < g.radius) pullTo(e.x, e.y, g.strength * (1 - d / g.radius));
+        }
+      } else if (pl.respawn > 0 && this.state === 'playing') {
+        // Koop: nach einer Weile zurück ins Spiel
+        pl.respawn -= dt;
+        if (pl.respawn <= 0) this.revive(pl, i);
       }
-    }
-    this.weapons.update(dt, input, p);
+      pl.weapons.update(dt, controls, p);
+    });
     if (this.state === 'playing') this.waves.update(dt, this.enemies.aliveCount);
 
-    // Gegner und Endgegner bewegen, ihre Ausgaben sammeln und umsetzen
+    // Gegner und Endgegner bewegen (jeder zielt auf das nächste Schiff), ihre Ausgaben sammeln und umsetzen
     const out = this.out;
     out.shots.length = out.spawns.length = out.effects.length = 0;
     for (const e of this.enemies.all) {
       if (!e.active) continue;
-      if (!e.update(dt, p.x, p.y, out)) e.kill();
+      const t = this.aimAt(e.x, e.y);
+      if (!e.update(dt, t.x, t.y, out)) e.kill();
     }
-    boss?.update(dt, p.x, p.y, out);
+    if (boss) {
+      const t = this.aimAt(boss.x, boss.y);
+      boss.threats = this.playerBullets.bullets;
+      boss.players = this.ships;
+      boss.update(dt, t.x, t.y, out);
+    }
     this.applyEnemyOutput();
 
     // Schwerkraftquelle des Endgegners krümmt alle Geschosse, Spielerschüsse werden verschluckt
@@ -421,22 +598,29 @@ export class Session {
     this.steerMissiles(dt);
     this.playerBullets.update(dt);
     this.missiles.update(dt);
-    for (const pool of Object.values(this.hostile)) pool.update(dt, p.x, p.y);
-    this.updateLaser(dt);
+    for (const pool of Object.values(this.hostile)) pool.update(dt, this.ships);
+    for (const pl of this.activePilots) this.updateLaser(dt, pl.weapons);
     this.beams.update(dt);
     this.beamSounds();
     this.collide();
     this.collect(dt);
 
-    this.hud.setBoss(boss ? this.bossName : null, boss ? boss.health() : 0);
-    const w = this.weapons;
-    this.hud.setPowerUps([
-      { label: `SCHILD ×${p.shieldHits}`, time: p.shielded ? p.shieldTime : 0, cls: 'pu-shield' },
-      { label: 'FÄCHER', time: p.fanTime, cls: 'pu-fan' },
-      { label: 'LASER', time: w.laserTime, cls: 'pu-laser' },
-      { label: 'RAKETEN', time: w.missileTime, cls: 'pu-missile' },
-      { label: 'BEGLEITER', time: w.optionTime, cls: 'pu-option' },
-    ]);
+    this.hud.setBoss(boss ? this.bossName + boss.hudSuffix() : null, boss ? boss.health() : 0);
+    // Aktive Power-ups, im Koop mit vorangestelltem Spieler
+    this.hud.setPowerUps(
+      this.activePilots.flatMap((pl, i) => {
+        const p = pl.ship;
+        const w = pl.weapons;
+        const tag = this.players === 2 ? `P${i + 1} ` : '';
+        return [
+          { label: `${tag}SCHILD ×${p.shieldHits}`, time: p.shielded ? p.shieldTime : 0, cls: 'pu-shield' },
+          { label: `${tag}FÄCHER`, time: p.fanTime, cls: 'pu-fan' },
+          { label: `${tag}LASER`, time: w.laserTime, cls: 'pu-laser' },
+          { label: `${tag}RAKETEN`, time: w.missileTime, cls: 'pu-missile' },
+          { label: `${tag}BEGLEITER`, time: w.optionTime, cls: 'pu-option' },
+        ];
+      }),
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -464,7 +648,7 @@ export class Session {
       if (fx.kind === 'warp') {
         for (let i = 0; i < 18; i++) {
           const a = (i / 18) * Math.PI * 2;
-          this.fx.sparks.emit(fx.x, fx.y, Math.cos(a) * 7, Math.sin(a) * 3, 0.3, PSI_SPARK);
+          this.fx.sparks.emit(fx.x, fx.y, Math.cos(a) * 7, Math.sin(a) * 3, 0.3, AETHER_SPARK);
         }
         this.sound.warp();
       } else if (fx.kind === 'hatch') {
@@ -506,8 +690,8 @@ export class Session {
   }
 
   /** Dauerlaser: senkrecht nach oben bis zum ersten Hindernis, Schaden pro Sekunde. */
-  private updateLaser(dt: number): void {
-    const beam = this.weapons.laser;
+  private updateLaser(dt: number, weapons: Weapons): void {
+    const beam = weapons.laser;
     if (!beam) return;
     const hw = LASER_WIDTH / 2;
     let hitY = FIELD.halfHeight + 4;
@@ -597,7 +781,7 @@ export class Session {
   private onWaveCleared(): void {
     // Werft nach jeder 5. Welle, außer direkt vor einem Endgegner (danach öffnet sie ohnehin)
     if (this.waves.number % 5 === 0 && !this.waves.nextIsBoss) this.shopTimer = 1.2;
-    const kind = this.hull < this.maxHull ? 'repair' : randomPowerUp('repair');
+    const kind = this.anyDamaged ? 'repair' : randomPowerUp('repair');
     this.powerUps.spawn(kind, randRange(-6, 6), 20);
   }
 
@@ -608,8 +792,17 @@ export class Session {
     this.sound.bossWarning(id);
     this.sound.setMusic(id);
     const diff = this.waves.difficulty;
+    const tune = BOSS_TUNING[id];
     this.boss = this.bosses[id];
-    this.boss.start({ ...diff, hp: diff.hp * DEV.bossHp });
+    // Endgegner: eigenes Angriffstempo (bossFire statt des Faktors für normale Gegner)
+    // Auf Sehr leicht steigt die Abstimmung flacher an (bossRamp < 1)
+    const ramp = this.setting.bossRamp;
+    const fireRate = (diff.fireRate / this.setting.enemyFire) * tune.fire ** ramp * this.setting.bossFire;
+    // Lebenspunkte: Stufe (Runde) mal bossHp statt des Faktors für normale Gegner
+    const hp = (diff.hp / this.setting.hp) * this.setting.bossHp;
+    this.boss.start({ ...diff, hp: hp * DEV.bossHp, fireRate }, tune.hp ** ramp);
+    this.devStats.bossStart = this.devStats.time;
+    this.devStats.bossHits = this.devStats.hits;
   }
 
   /** Verbindet die Endgegner mit Effekten, Sound, Punkten und Beute. */
@@ -627,7 +820,7 @@ export class Session {
       partDestroyed: (x, y, score, coins, repair) => {
         this.addScore(score);
         this.pickups.drop(x, y, coins);
-        if (repair) this.powerUps.spawn(this.hull < this.maxHull ? 'repair' : randomPowerUp('repair'), x, y);
+        if (repair) this.powerUps.spawn(this.anyDamaged ? 'repair' : randomPowerUp('repair'), x, y);
         this.refreshHud();
       },
       shake: (amount) => this.hooks.shake(amount),
@@ -638,6 +831,7 @@ export class Session {
       banner: (title, subtitle, warn = false) => this.hud.showBanner(title, subtitle, warn, 1800),
       sfx: (name, arg) => {
         if (name === 'glyph') this.sound.glyph(arg ?? 0);
+        else if (name === 'tick') this.sound.tick(!!arg);
         else this.sound[name]();
       },
       death: () => {
@@ -652,6 +846,14 @@ export class Session {
         this.hooks.shake(1.6);
         this.hud.flash();
         for (let i = 0; i < 8; i++) this.pickups.drop(x + randRange(-9, 9), y + randRange(-3, 2), 5);
+        this.devStats.bosses.push({
+          name: this.bossName,
+          wave: this.waves.number,
+          time: Math.round(this.devStats.time - this.devStats.bossStart),
+          hits: this.devStats.hits - this.devStats.bossHits,
+          maxHull: this.maxHull,
+          upgrades: JSON.stringify(this.upgrades.toJSON()),
+        });
         const bonus = 20000 * (this.waves.loop + 1) * (this.waves.sector + 1);
         this.addScore(bonus);
         this.hud.showBanner(this.boss?.defeatTitle ?? `${this.bossName} ZERSTÖRT`, `+${bonus}`, false, 3500);
@@ -683,7 +885,7 @@ export class Session {
     }
     // Prismen werfen Treffer als Splitter auf den Spieler zurück
     if (result === 'hit' && e.reflectReady()) {
-      const p = this.player;
+      const p = this.aimAt(e.x, e.y);
       const a = Math.atan2(p.y - e.y, p.x - e.x);
       const v = 13 * this.setting.bullet;
       this.hostile.shard.spawn(e.x, e.y, Math.cos(a) * v, Math.sin(a) * v);
@@ -698,8 +900,6 @@ export class Session {
   }
 
   private collide(): void {
-    const p = this.player;
-
     // Spielerschüsse und Raketen gegen Endgegner und Gegner
     for (const [pool, damage] of [
       [this.playerBullets, BULLET_DAMAGE * this.upgrades.damageMul],
@@ -724,16 +924,22 @@ export class Session {
       }
     }
 
+    for (const pl of this.activePilots) this.collidePilot(pl);
+  }
+
+  /** Treffer auf ein Spielerschiff: Geschosse, Strahlen, Zusammenstöße. */
+  private collidePilot(pl: Pilot): void {
+    const p = pl.ship;
     if (!p.canBeHit) return;
 
-    // Gegnerische Geschosse gegen Spieler
-    for (const pool of Object.values(this.hostile)) {
+    // Gegnerische Geschosse
+    for (const [style, pool] of Object.entries(this.hostile)) {
       for (const b of pool.bullets) {
         if (!b.active) continue;
         const r = p.hitRadius + ENEMY_BULLET_RADIUS;
         if (sweptDistanceSq(b, p.x, p.y) > r * r) continue;
         pool.kill(b);
-        this.damagePlayer();
+        this.damagePlayer(pl, `schuss:${style}`);
         return;
       }
     }
@@ -742,7 +948,7 @@ export class Session {
     for (const beam of this.beams.all) {
       if (!beam.active || !beam.hostile || beam.charge) continue;
       if (beamDistanceSq(beam, p.x, p.y) < (beam.width / 2 + p.hitRadius * 0.7) ** 2) {
-        this.damagePlayer();
+        this.damagePlayer(pl, `strahl:${beam.width.toFixed(1)}`);
         return;
       }
     }
@@ -753,10 +959,10 @@ export class Session {
       const r = e.type.radius + p.hitRadius + 0.4;
       if ((e.x - p.x) ** 2 + (e.y - p.y) ** 2 > r * r) continue;
       if (e.damage(RAM_DAMAGE) === 'killed') this.destroyEnemy(e);
-      this.damagePlayer();
+      this.damagePlayer(pl, `ramm:${e.typeId}`);
       return;
     }
-    if (this.boss?.touchesPlayer(p.x, p.y, p.hitRadius)) this.damagePlayer();
+    if (this.boss?.touchesPlayer(p.x, p.y, p.hitRadius)) this.damagePlayer(pl, 'boss');
   }
 
   private destroyEnemy(e: Enemy): void {
@@ -766,7 +972,7 @@ export class Session {
     this.hooks.shake(t.explosion === 3 ? 0.6 : t.explosion === 2 ? 0.25 : 0.08);
     this.pickups.drop(e.x, e.y, t.coins);
     if (Math.random() < t.drop) {
-      this.powerUps.spawn(this.hull < this.maxHull && Math.random() < 0.5 ? 'repair' : randomPowerUp(), e.x, e.y);
+      this.powerUps.spawn(this.anyDamaged && Math.random() < 0.5 ? 'repair' : randomPowerUp(), e.x, e.y);
     }
     // Ring aus Geschossen beim Tod (Minen, Sternigel)
     if (t.deathRing) {
@@ -799,9 +1005,8 @@ export class Session {
     this.refreshHud();
   }
 
-  private damagePlayer(): void {
-    const p = this.player;
-    if (DEV.god) return;
+  private damagePlayer(pl: Pilot, source = '?'): void {
+    const p = pl.ship;
 
     // Schild fängt den Treffer ab
     if (p.shielded) {
@@ -811,13 +1016,20 @@ export class Session {
       impactSparks(this.fx.sparks, p.x, p.y);
       return;
     }
+    // ?god: Treffer nur zählen (mit kurzer Unverwundbarkeit wie bei echtem Schaden)
+    if (DEV.god) {
+      this.devStats.hits++;
+      this.devStats.hitBy[source] = (this.devStats.hitBy[source] ?? 0) + 1;
+      p.hit();
+      return;
+    }
 
-    this.hull--;
+    pl.hull--;
     this.hooks.shake(0.7);
     impactSparks(this.fx.sparks, p.x, p.y);
     this.refreshHud();
 
-    if (this.hull > 0) {
+    if (pl.hull > 0) {
       p.hit();
       this.sound.playerHit();
       return;
@@ -828,7 +1040,13 @@ export class Session {
     this.sound.explode(3);
     this.hooks.shake(1.2);
     p.destroy();
-    this.weapons.reset();
+    pl.weapons.reset();
+    // Koop: solange der andere noch fliegt, geht es weiter, der Abgeschossene kommt später zurück
+    if (this.activePilots.some((o) => o.ship.alive)) {
+      pl.respawn = RESPAWN_TIME;
+      this.hud.showBanner(`SPIELER ${this.pilots.indexOf(pl) + 1} ABGESCHOSSEN`, `ZURÜCK IN ${RESPAWN_TIME} SEKUNDEN`, true, 2000);
+      return;
+    }
     this.state = 'dying';
     this.stateTimer = 1.6;
   }
@@ -838,26 +1056,29 @@ export class Session {
   // -------------------------------------------------------------------------
 
   private collect(dt: number): void {
-    const p = this.player;
-    const coins = this.pickups.update(dt, p.x, p.y, p.alive);
+    const pilots = this.activePilots;
+    const ships = pilots.map((pl) => pl.ship);
+    const coins = this.pickups.update(dt, ships);
     if (coins > 0) {
       this.gold += coins;
       this.sound.coin();
       this.refreshHud();
     }
-    for (const kind of this.powerUps.update(dt, p.x, p.y, p.alive)) this.applyPowerUp(kind);
+    for (const { kind, who } of this.powerUps.update(dt, ships)) this.applyPowerUp(kind, pilots[who] ?? pilots[0]);
   }
 
-  private applyPowerUp(kind: PowerUpKind): void {
-    const p = this.player;
-    const w = this.weapons;
+  /** Power-up für den Spieler, der die Kapsel eingesammelt hat. */
+  private applyPowerUp(kind: PowerUpKind, pl: Pilot): void {
+    const p = pl.ship;
+    const w = pl.weapons;
     this.sound.powerUp(kind);
-    const banner = (title: string, sub: string) => this.hud.showBanner(title, sub, false, 1200);
+    const tag = this.players === 2 ? `P${this.pilots.indexOf(pl) + 1}: ` : '';
+    const banner = (title: string, sub: string) => this.hud.showBanner(tag + title, sub, false, 1200);
     const time = (base: number) => Math.round(base * this.upgrades.durationMul);
     switch (kind) {
       case 'repair':
-        if (this.hull < this.maxHull) {
-          this.hull++;
+        if (pl.hull < this.maxHull) {
+          pl.hull++;
           banner('REPARATUR', '+1 HÜLLE');
         } else {
           this.addScore(REPAIR_BONUS);
@@ -897,12 +1118,30 @@ export class Session {
     // Münzen, die noch im Bild sind, gehen nicht verloren
     const coins = this.pickups.collectAll();
     if (coins > 0) this.gold += coins;
-    this.weapons.stopLaser();
+    for (const pl of this.pilots) pl.weapons.stopLaser();
     input.clearPressed();
     this.hud.hideBanner();
     this.shop.show();
     this.sound.shopOpen();
     this.refreshHud();
+  }
+
+  /** Autopilot in der Werft: reparieren, dann der Reihe nach Verbesserungen, solange das Gold reicht. */
+  private botShopping(): void {
+    const order: UpgradeId[] = ['repair', 'guns', 'fireRate', 'damage', 'hull', 'shieldGen', 'drones', 'duration', 'engine', 'magnet'];
+    for (let bought = true; bought; ) {
+      bought = false;
+      for (const id of order) {
+        const def = UPGRADES.find((u) => u.id === id)!;
+        const price = this.upgrades.price(def);
+        if (price === null || price > this.gold || (id === 'repair' && !this.anyDamaged)) continue;
+        if (this.buy(def) === 'ok') {
+          bought = true;
+          break;
+        }
+      }
+    }
+    this.closeShop();
   }
 
   private closeShop(): void {
@@ -914,7 +1153,7 @@ export class Session {
     const price = this.upgrades.price(def);
     let result: BuyResult = 'ok';
     if (price === null) result = 'max';
-    else if (def.id === 'repair' && this.hull >= this.maxHull) result = 'full';
+    else if (def.id === 'repair' && !this.anyDamaged) result = 'full';
     else if (price > this.gold) result = 'poor';
     if (result !== 'ok' || price === null) {
       this.sound.shopDeny();
@@ -923,7 +1162,8 @@ export class Session {
     this.gold -= price;
     this.upgrades.buy(def.id);
     // Mehr Panzerung bringt das neue Segment gleich repariert mit
-    if (def.id === 'hull' || def.id === 'repair') this.hull = Math.min(this.maxHull, this.hull + 1);
+    // Im Koop für beide Spieler
+    if (def.id === 'hull' || def.id === 'repair') for (const pl of this.pilots) pl.hull = Math.min(this.maxHull, pl.hull + 1);
     this.sound.shopBuy();
     this.refreshHud();
     return 'ok';
@@ -932,6 +1172,6 @@ export class Session {
   private refreshHud(): void {
     this.hud.setScore(this.score);
     this.hud.setGold(this.gold);
-    this.hud.setHull(this.hull, this.maxHull);
+    this.pilots.forEach((pl, i) => this.hud.setHull(i, pl.hull, this.maxHull));
   }
 }

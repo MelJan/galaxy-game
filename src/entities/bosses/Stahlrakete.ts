@@ -42,7 +42,7 @@ interface Engine {
 type ShipMove = 'glide' | 'aim' | 'dive' | 'burn' | 'climb';
 
 /**
- * Zwischenboss in Sektor 5, Stahlrakete (Edelstahl-Oberstufe auf einem Booster):
+ * Zwischenboss in Sektor 5, Stahlrakete (Kampf-Oberstufe der Miliz auf einem Booster):
  * Phase 1: Booster-Triebwerke zünden abwechselnd Flammenstrahlen nach unten. Nur kalte Triebwerke sind verwundbar.
  * Phase 2 nach der heißen Stufentrennung: Der Booster stürzt ab, die Oberstufe gleitet hin und her und stürzt sich
  * im „Suicide Burn“ herab. Ihre drei Triebwerke sind nur verwundbar, während sie danach abkühlt und wieder steigt.
@@ -75,7 +75,6 @@ export class Stahlrakete extends BossBase {
     this.booster = BOOSTER_ENGINES.map((x) => engine(x, BOOSTER_ENGINE_Y));
     this.shipEngines = SHIP_ENGINES.map((x) => engine(x, SHIP_ENGINE_Y));
     this.fallingBooster = this.sprite([BOOSTER_ROWS]);
-    this.defeatTitle = 'UNGEPLANTE SCHNELLE ZERLEGUNG';
     this.register(scene);
   }
 
@@ -97,7 +96,7 @@ export class Stahlrakete extends BossBase {
 
   private resetEngine(e: Engine, hp: number): void {
     this.beams.release(e.beam);
-    Object.assign(e, { hp: hp * this.diff.hp, alive: true, flash: 0, state: 'cold', timer: 0, beam: null });
+    Object.assign(e, { hp: hp * this.hpMul, alive: true, flash: 0, state: 'cold', timer: 0, beam: null });
     e.glow.visible = false;
     e.glow.setFrame(0);
   }
@@ -111,7 +110,7 @@ export class Stahlrakete extends BossBase {
   }
 
   health(): number {
-    const sum = (list: Engine[], hp: number) => list.reduce((n, e) => n + (e.alive ? Math.max(0, e.hp) : 0), 0) / (list.length * hp * this.diff.hp);
+    const sum = (list: Engine[], hp: number) => list.reduce((n, e) => n + (e.alive ? Math.max(0, e.hp) : 0), 0) / (list.length * hp * this.hpMul);
     if (this.phase === 'enter' || this.phase === 'fight') return 0.5 + 0.5 * sum(this.booster, 22);
     return 0.5 * sum(this.shipEngines, 26);
   }

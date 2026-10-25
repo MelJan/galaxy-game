@@ -95,6 +95,10 @@ export const NEBULA_THEMES: NebulaTheme[] = [
   { deep: v(0.001, 0.0, 0.003), a: v(0.06, 0.005, 0.06), b: v(0.0, 0.05, 0.04), hi: v(0.5, 0.1, 0.35) },
   // Kosmische Tiefe: Tiefseeblau, Türkis, rosa Plankton
   { deep: v(0.0, 0.008, 0.02), a: v(0.0, 0.07, 0.11), b: v(0.06, 0.01, 0.06), hi: v(0.15, 0.5, 0.55) },
+  // Orbitalfriedhof: kühles Graublau mit Erdblau-Schimmer
+  { deep: v(0.004, 0.006, 0.012), a: v(0.04, 0.05, 0.08), b: v(0.01, 0.06, 0.12), hi: v(0.3, 0.35, 0.45) },
+  // Sternenflotten: tiefes Dunkelrot und Orange, wie ein Gefechtsfeld
+  { deep: v(0.008, 0.003, 0.006), a: v(0.09, 0.02, 0.04), b: v(0.02, 0.03, 0.09), hi: v(0.5, 0.25, 0.1) },
 ];
 
 /** Weit entfernte Nebel-Ebene mit prozeduralem Shader. */

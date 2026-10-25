@@ -3,6 +3,7 @@ export class Hud {
   private readonly score = document.getElementById('score')!;
   private readonly gold = document.getElementById('gold')!;
   private readonly hull = document.getElementById('hull')!;
+  private readonly hull2 = document.getElementById('hull2')!;
   private readonly banner = document.getElementById('banner')!;
   private readonly gameOver = document.getElementById('gameover')!;
   private readonly finalScore = document.getElementById('final-score')!;
@@ -22,12 +23,20 @@ export class Hud {
     this.gold.textContent = String(n);
   }
 
-  setHull(current: number, max: number): void {
-    if (this.hull.childElementCount !== max) {
-      this.hull.replaceChildren(...Array.from({ length: max }, () => document.createElement('i')));
+  /** Hülle von Spieler 0 oder 1. */
+  setHull(player: number, current: number, max: number): void {
+    const el = player === 0 ? this.hull : this.hull2;
+    if (el.childElementCount !== max) {
+      el.replaceChildren(...Array.from({ length: max }, () => document.createElement('i')));
     }
-    [...this.hull.children].forEach((seg, i) => seg.classList.toggle('empty', i >= current));
-    this.hull.classList.toggle('critical', current === 1);
+    [...el.children].forEach((seg, i) => seg.classList.toggle('empty', i >= current));
+    el.classList.toggle('critical', current === 1);
+  }
+
+  /** Zweite Hüllenanzeige nur im Zweispieler-Modus; Beschriftung „P1“/„P2“ statt „HÜLLE“. */
+  setPlayers(n: number): void {
+    document.getElementById('hull2-row')!.classList.toggle('hidden', n < 2);
+    document.getElementById('hull-label')!.textContent = n < 2 ? 'HÜLLE' : 'P1';
   }
 
   showBanner(title: string, subtitle = '', warn = false, duration = 2200): void {

@@ -80,7 +80,7 @@ export class Urschleim extends BossBase {
   health(): number {
     const total = this.potential(3);
     let left = 0;
-    for (const b of this.blobs) if (b.alive) left += Math.max(0, b.hp) / this.diff.hp + 2 * this.potential(b.size - 1);
+    for (const b of this.blobs) if (b.alive) left += Math.max(0, b.hp) / this.hpMul + 2 * this.potential(b.size - 1);
     return left / total;
   }
 
@@ -96,7 +96,7 @@ export class Urschleim extends BossBase {
   private spawnBlob(size: number, x: number, y: number, vx: number, vy: number): Blob | null {
     const b = this.blobs.find((blob) => blob.size === size && !blob.alive);
     if (!b) return null;
-    Object.assign(b, { alive: true, x, y, vx, vy, hp: HP[size] * this.diff.hp, flash: 0, squash: 0, spitTimer: randRange(2, 4) });
+    Object.assign(b, { alive: true, x, y, vx, vy, hp: HP[size] * this.hpMul, flash: 0, squash: 0, spitTimer: randRange(2, 4) });
     b.sprite.visible = true;
     return b;
   }

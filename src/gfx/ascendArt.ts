@@ -1,7 +1,7 @@
 import { bayer, Painter } from './painter';
 import type { Palette } from './pixel';
 
-/** Sektor 3 „Die Aufgestiegenen“: Gold, Psi-Kristalle, Energieschilde. */
+/** Sektor 3 „Die Aufgestiegenen“: Gold, Ätherkristalle, Energieschilde. */
 export const ASCEND_PALETTE: Palette = {
   k: 0x0a0c1a, // Kontur
   1: 0x3a2a10, // Gold, dunkel bis hell
@@ -9,7 +9,7 @@ export const ASCEND_PALETTE: Palette = {
   3: 0xb08a30,
   4: 0xe8c860,
   5: 0xfff2c0,
-  b: 0x123070, // Psi-Energie, dunkel bis hell
+  b: 0x123070, // Äther-Energie, dunkel bis hell
   B: 0x2a6af0,
   C: 0x8ad8ff,
   W: 0xffffff,
@@ -41,7 +41,7 @@ function shadeGold(p: Painter, h: number): void {
 // Gegner
 // ---------------------------------------------------------------------------
 
-/** Phasengleiter, 19 × 15: goldene Pfeilform mit Psi-Kern, Spitze nach unten. */
+/** Phasengleiter, 19 × 15: goldene Pfeilform mit Ätherkern, Spitze nach unten. */
 export const GLIDER_ROWS = (() => {
   const p = new Painter(19, 15);
   p.poly([[9.5, 15], [0, 2.5], [3, 0], [9.5, 5], [16, 0], [19, 2.5]], GOLD);
@@ -104,9 +104,9 @@ export const LANCER_ROWS = (() => {
 /** Kristallspitze relativ zur Sprite-Mitte, in Pixeln. */
 export const LANCER_TIP_Y = -11;
 
-/** Psi-Bolzen (3 × 7) und zielsuchende Psi-Kugel (7 × 7). */
-export const PSI_BOLT_ROWS = ['.C.', 'CWC', 'CWC', 'BCB', 'BCB', '.B.', '.b.'];
-export const PSI_ORB_ROWS = (() => {
+/** Ätherbolzen (3 × 7) und zielsuchende Ätherkugel (7 × 7). */
+export const AETHER_BOLT_ROWS = ['.C.', 'CWC', 'CWC', 'BCB', 'BCB', '.B.', '.b.'];
+export const AETHER_ORB_ROWS = (() => {
   const p = new Painter(7, 7);
   p.circle(3, 3, 3, 'b');
   p.circle(3, 3, 2, 'B');
@@ -123,7 +123,7 @@ export const ARK_W = 185;
 export const ARK_H = 80;
 
 export const ARK_MOUNTS = {
-  pylons: [
+  glyphs: [
     { x: 36.5, y: 40.5 },
     { x: 62.5, y: 31.5 },
     { x: 122.5, y: 31.5 },
@@ -168,26 +168,7 @@ export function paintArkHull(): string[] {
   return p.rows();
 }
 
-/** Schild-Pylon, 11 × 19: senkrechter Kristall in goldener Fassung. */
-export const PYLON_FRAMES = [0, 1].map((k) => {
-  const p = new Painter(11, 19);
-  p.poly([[5.5, 0], [10, 6], [5.5, 18.5], [1, 6]], 'B');
-  p.map((ch, x, y) => (ch === 'B' && (x + y + k) % 5 === 0 ? 'C' : ch));
-  p.line(5, 2, 5, 14, 'C');
-  p.rect(2, 15, 7, 3, GOLD);
-  shadeGold(p, 19);
-  p.outline('k');
-  return p.rows();
-});
-export const PYLON_WRECK_ROWS = (() => {
-  const p = new Painter(11, 19);
-  p.poly([[3, 12], [6, 9], [8, 13], [5.5, 18.5]], 'b');
-  p.rect(2, 15, 7, 3, '2');
-  p.outline('k');
-  return p.rows();
-})();
-
-/** Psi-Kern, 23 × 23: facettierter Kristall, pulsiert in drei Frames. */
+/** Ätherkern, 23 × 23: facettierter Kristall, pulsiert in drei Frames. */
 export const ARK_CORE_FRAMES = [0, 1, 2].map((k) => {
   const p = new Painter(23, 23);
   p.poly([[11.5, 0], [22, 11.5], [11.5, 23], [1, 11.5]], 'b');

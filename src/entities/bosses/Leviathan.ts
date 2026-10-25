@@ -110,13 +110,13 @@ export class Leviathan extends BossBase {
   health(): number {
     if (this.phase === 'core' || this.phase === 'dying' || this.phase === 'opening') return 0.4 * Math.max(0, this.headHp) / this.headMax;
     const left = this.segs.reduce((n, s) => n + (s.gill && !s.scar ? Math.max(0, s.hp) : 0), 0);
-    return 0.4 + 0.6 * (left / (GILLS.length * 16 * this.diff.hp));
+    return 0.4 + 0.6 * (left / (GILLS.length * 16 * this.hpMul));
   }
 
   protected onStart(): void {
     this.count = SEGMENTS;
-    this.headMax = this.headHp = 70 * this.diff.hp;
-    for (const s of this.segs) Object.assign(s, { hp: 16 * this.diff.hp, scar: false, flash: 0 });
+    this.headMax = this.headHp = 70 * this.hpMul;
+    for (const s of this.segs) Object.assign(s, { hp: 16 * this.hpMul, scar: false, flash: 0 });
     for (const s of this.sprites()) s.visible = true;
     // Schwimmt von oben herein: die Spur liegt zunächst als gerade Linie über dem Bild
     this.hx = 0;
@@ -196,8 +196,8 @@ export class Leviathan extends BossBase {
     this.headFlash = Math.max(0, this.headFlash - dt * 8);
     for (const s of this.segs) s.flash = Math.max(0, s.flash - dt * 8);
 
-    // Bewegung: umherschwimmen, Sturzangriff mit Vorwarnung
-    this.moveTimer -= dt;
+    // Bewegung: umherschwimmen, Sturzangriff mit Vorwarnung (bei ruhigem Angriffstempo seltener)
+    this.moveTimer -= dt * (this.move === 'roam' ? Math.min(1, this.diff.fireRate) : 1);
     if (this.move === 'roam') {
       if (Math.hypot(this.target.x - this.hx, this.target.y - this.hy) < 2.5) this.pickTarget();
       if (this.moveTimer <= 0) {

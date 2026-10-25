@@ -90,14 +90,14 @@ export class Singularitaet extends BossBase {
   health(): number {
     if (this.phase !== 'core' && this.phase !== 'dying' && this.phase !== 'opening') {
       const left = this.gens.reduce((n, g) => n + (g.alive ? Math.max(0, g.hp) : 0), 0);
-      return 0.5 + 0.5 * (left / (this.gens.length * 14 * this.diff.hp));
+      return 0.5 + 0.5 * (left / (this.gens.length * 14 * this.hpMul));
     }
     return 0.5 * Math.max(0, this.coreHp) / this.coreMax;
   }
 
   protected onStart(): void {
-    this.coreMax = this.coreHp = 70 * this.diff.hp;
-    this.gens.forEach((g, i) => Object.assign(g, { angle: i * 1.7, hp: 14 * this.diff.hp, alive: true, flash: 0, fireTimer: 1.5 + i * 0.7 }));
+    this.coreMax = this.coreHp = 70 * this.hpMul;
+    this.gens.forEach((g, i) => Object.assign(g, { angle: i * 1.7, hp: 14 * this.hpMul, alive: true, flash: 0, fireTimer: 1.5 + i * 0.7 }));
     for (const s of this.sprites()) s.visible = true;
     this.ringTimer = 3;
     this.spiralTimer = 0;

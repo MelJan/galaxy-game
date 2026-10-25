@@ -77,15 +77,27 @@ export const SHIP_GUN_Y = 2;
 export const SHIP_NOSE_GUNS = [-3, 3];
 export const SHIP_NOSE_Y = 9;
 
+/** Spieler 2: orange Lackierung, türkise Akzente. */
+export const SHIP_PALETTE_P2: Palette = {
+  ...SHIP_PALETTE,
+  1: 0x552a14,
+  2: 0x94501f,
+  3: 0xd27f32,
+  4: 0xf4b866,
+  5: 0xfff0d6,
+  r: 0x0e6a5a,
+  R: 0x3ad8b0,
+};
+
 /** Frames: 0 = gerade, 1 = Schräglage links, 2 = Schräglage rechts. */
-export function buildShipFrames(): ShipFrame[] {
+export function buildShipFrames(palette: Palette = SHIP_PALETTE): ShipFrame[] {
   const right = bankRight(SHIP_ROWS, BANK_RATIO, SHIP_DARKEN);
   const g = Math.round(GUN_OFFSET * BANK_RATIO);
   const e = Math.round(ENGINE_OFFSET * BANK_RATIO);
   return [
-    { texture: makePixelTexture(SHIP_ROWS, SHIP_PALETTE), guns: [-GUN_OFFSET, GUN_OFFSET], engines: [-ENGINE_OFFSET, ENGINE_OFFSET] },
-    { texture: makePixelTexture(flipHorizontal(right), SHIP_PALETTE), guns: [-g, GUN_OFFSET], engines: [-e, ENGINE_OFFSET] },
-    { texture: makePixelTexture(right, SHIP_PALETTE), guns: [-GUN_OFFSET, g], engines: [-ENGINE_OFFSET, e] },
+    { texture: makePixelTexture(SHIP_ROWS, palette), guns: [-GUN_OFFSET, GUN_OFFSET], engines: [-ENGINE_OFFSET, ENGINE_OFFSET] },
+    { texture: makePixelTexture(flipHorizontal(right), palette), guns: [-g, GUN_OFFSET], engines: [-e, ENGINE_OFFSET] },
+    { texture: makePixelTexture(right, palette), guns: [-GUN_OFFSET, g], engines: [-ENGINE_OFFSET, e] },
   ];
 }
 

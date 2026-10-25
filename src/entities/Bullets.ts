@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { FIELD, PIXEL } from '../config';
+import { nearest, type Target } from '../core/view';
 import { createPixelMaterial, makePixelTexture, snapPixel, type Palette } from '../gfx/pixel';
 
 export interface Bullet {
@@ -90,8 +91,8 @@ export class BulletPool {
     b.mesh.visible = false;
   }
 
-  /** Bewegt alle Projektile. Zielsuchende drehen sich zum Ziel (tx, ty), sofern eins angegeben ist. */
-  update(dt: number, tx?: number, ty?: number): void {
+  /** Bewegt alle Projektile. Zielsuchende drehen sich zum nächsten lebenden Ziel, sofern Ziele angegeben sind. */
+  update(dt: number, targets?: readonly Target[]): void {
     const limitX = FIELD.halfWidth + 4;
     const limitY = FIELD.halfHeight + 4;
     for (const b of this.bullets) {
@@ -101,7 +102,10 @@ export class BulletPool {
         this.kill(b);
         continue;
       }
-      if (b.homing > 0 && tx !== undefined && ty !== undefined) steer(b, tx, ty, b.homing * dt);
+      if (b.homing > 0 && targets) {
+        const t = nearest(targets, b.x, b.y);
+        if (t) steer(b, t.x, t.y, b.homing * dt);
+      }
       b.prevX = b.x;
       b.prevY = b.y;
       b.age += dt;

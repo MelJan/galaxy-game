@@ -103,7 +103,7 @@ export class HiveQueen extends BossBase {
   }
 
   protected onStart(): void {
-    this.eyeMax = this.eyeHp = 120 * this.diff.hp;
+    this.eyeMax = this.eyeHp = 120 * this.hpMul;
     this.maw = 'closed';
     this.mawTimer = 3;
     this.openAmount = 0;
@@ -115,7 +115,7 @@ export class HiveQueen extends BossBase {
     this.lash = 0;
     for (const t of this.tentacles) {
       t.length = SEGMENTS;
-      t.tipHp = SEGMENT_HP * this.diff.hp;
+      t.tipHp = SEGMENT_HP * this.hpMul;
       t.flash = 0;
     }
     for (const s of this.sprites()) s.visible = true;
@@ -192,7 +192,7 @@ export class HiveQueen extends BossBase {
     switch (this.maw) {
       case 'closed':
         // Hinter geschlossenen Kiefern regeneriert sie sich
-        this.eyeHp = Math.min(this.eyeMax, this.eyeHp + 1.0 * this.diff.hp * dt);
+        this.eyeHp = Math.min(this.eyeMax, this.eyeHp + 1.0 * this.hpMul * dt);
         if (this.mawTimer <= 0) {
           this.maw = 'telegraph';
           this.mawTimer = TELEGRAPH_TIME;
@@ -272,7 +272,7 @@ export class HiveQueen extends BossBase {
           t.flash = 1;
           if (t.tipHp > 0) return this.events.hit();
           t.length--;
-          t.tipHp = SEGMENT_HP * this.diff.hp;
+          t.tipHp = SEGMENT_HP * this.hpMul;
           this.events.sfx('sever');
           this.events.explode(tip.x, tip.y, 1, ACID_DEBRIS);
           if (t.length > 0) return;

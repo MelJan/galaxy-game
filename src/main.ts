@@ -1,3 +1,5 @@
+// Schrift lokal eingebunden (SIL Open Font License, siehe Credits und licenses/THIRD_PARTY_NOTICES.txt)
+import '@fontsource/press-start-2p/400.css';
 import { Game } from './Game';
 
 const game = new Game(document.getElementById('app')!, document.getElementById('pause')!);

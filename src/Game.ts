@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { DEV } from './dev/flags';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
@@ -104,6 +105,12 @@ export class Game {
     this.applySize();
 
     window.addEventListener('resize', () => this.onResize());
+    // Hinweis beim Verbinden oder Trennen eines Controllers
+    this.input.onPadChange = (connected, slot, id) => {
+      const name = id.replace(/\(.*?\)/g, '').trim().slice(0, 32).toUpperCase();
+      this.hud.showBanner(`CONTROLLER ${slot} ${connected ? 'VERBUNDEN' : 'GETRENNT'}`, name, !connected, 2200);
+      this.sound.shopMove();
+    };
   }
 
   private createComposer(samples: number): EffectComposer {
@@ -129,19 +136,25 @@ export class Game {
     // Im ersten Frame kann das Delta negativ sein (rAF-Zeitstempel liegt vor dem Timer-Start)
     const dt = THREE.MathUtils.clamp(this.timer.getDelta(), 0, 1 / 20);
     // Esc schließt in der Werft das Menü statt zu pausieren
-    if (!this.session.blocksPause && (this.input.wasPressed('KeyP') || this.input.wasPressed('Escape'))) this.setPaused(!this.paused);
+    this.input.update();
+    if (!this.session.blocksPause && (this.input.wasPressed('KeyP') || this.input.wasPressed('Escape') || this.input.wasPressed('Start'))) {
+      this.setPaused(!this.paused);
+    }
     // In der Pause: S öffnet das Speichermenü, das Menü wird auch pausiert bedient
     if (this.paused) {
       if (this.session.menuOpen) this.session.handleMenus(this.input);
-      else if (this.input.wasPressed('KeyS')) this.session.openSaveMenu();
+      else if (this.input.wasPressed('KeyS') || this.input.wasPressed('PadY')) this.session.openSaveMenu();
     }
     if (this.input.wasPressed('KeyG')) this.toggleGfxMode();
     if (this.input.wasPressed('KeyM')) this.sound.toggleMusic();
     if (this.input.wasPressed('KeyN')) this.sound.toggleSound();
     this.hud.setAudio(this.sound.isSoundOn, this.sound.isMusicOn);
-    if (!this.paused) this.update(dt);
+    // ?turbo=N (nur Entwicklung): mehrere feste Schritte pro Bild
+    if (!this.paused) for (let i = 0; i < DEV.turbo; i++) this.update(DEV.turbo > 1 ? 1 / 30 : dt);
     this.planets.renderSurfaces(this.renderer);
     this.composer.render();
+    // Tastendrücke gelten nur für diesen Frame: was niemand abgeholt hat, darf später kein Menü auslösen
+    this.input.clearPressed();
   }
 
   private update(dt: number): void {
@@ -157,10 +170,10 @@ export class Game {
     this.fireFx.update(dt);
 
     // Hintergrund weich gegen die Spielerposition verschieben: nahe Ebenen bewegen sich sichtbar mehr
-    const player = this.session.player;
+    const focus = this.session.focus;
     const k = 1 - Math.exp(-3 * dt);
-    this.sway.x += (-player.x * CAMERA.swayX - this.sway.x) * k;
-    this.sway.y += (-player.y * CAMERA.swayY - this.sway.y) * k;
+    this.sway.x += (-focus.x * CAMERA.swayX - this.sway.x) * k;
+    this.sway.y += (-focus.y * CAMERA.swayY - this.sway.y) * k;
     this.background.position.set(this.sway.x, this.sway.y, 0);
 
     // Bildschirmwackeln bei Explosionen und Treffern

@@ -84,12 +84,10 @@ import('../gfx/ascendArt').then((a) => {
   show('Wächter', a.GUARDIAN_ROWS, a.ASCEND_PALETTE);
   a.GUARDIAN_SHIELD_FRAMES.forEach((f, i) => show(`Wächterschild ${i}`, f, a.ASCEND_PALETTE));
   show('Lanzenträger', a.LANCER_ROWS, a.ASCEND_PALETTE);
-  show('Psi-Bolzen', a.PSI_BOLT_ROWS, a.ASCEND_PALETTE);
-  show('Psi-Kugel', a.PSI_ORB_ROWS, a.ASCEND_PALETTE);
+  show('Ätherbolzen', a.AETHER_BOLT_ROWS, a.ASCEND_PALETTE);
+  show('Ätherkugel', a.AETHER_ORB_ROWS, a.ASCEND_PALETTE);
   show('Arche', a.paintArkHull(), a.ASCEND_PALETTE);
-  a.PYLON_FRAMES.forEach((f, i) => show(`Pylon ${i}`, f, a.ASCEND_PALETTE));
-  show('Pylon-Wrack', a.PYLON_WRECK_ROWS, a.ASCEND_PALETTE);
-  a.ARK_CORE_FRAMES.forEach((f, i) => show(`Psi-Kern ${i}`, f, a.ASCEND_PALETTE));
+  a.ARK_CORE_FRAMES.forEach((f, i) => show(`Ätherkern ${i}`, f, a.ASCEND_PALETTE));
   show('Schildkuppel', a.ARK_SHIELD_FRAMES[0], a.ASCEND_PALETTE);
 });
 import('../gfx/ascendArt').then((a) => a.GLYPH_FRAMES.forEach((frames, i) => frames.forEach((f, k) => show(`Rune ${i}.${k}`, f, a.ASCEND_PALETTE))));
@@ -142,4 +140,31 @@ import('../gfx/deepArt').then((a) => {
   a.LEVI_HEAD_FRAMES.forEach((f, i) => show(`Leviathan-Kopf ${i}`, f, a.DEEP_PALETTE));
   a.LEVI_SEGMENT_FRAMES.forEach((f, i) => show(`Segment ${i}`, f, a.DEEP_PALETTE));
   show('Schwanz', a.LEVI_TAIL_ROWS, a.DEEP_PALETTE);
+});
+import('../gfx/orbitArt').then((a) => {
+  a.SATELLITE_FRAMES.forEach((f, i) => show(`Satellit ${i}`, f, a.ORBIT_PALETTE));
+  show('Schrott', a.JUNK_ROWS, a.ORBIT_PALETTE);
+  a.BEACON_FRAMES.forEach((f, i) => show(`Bake ${i}`, f, a.ORBIT_PALETTE));
+  a.CABRIO_FRAMES.forEach((f, i) => show(`Cabrio ${i}`, f, a.ORBIT_PALETTE));
+  a.KOSMO_CORE_FRAMES.forEach((f, i) => show(`Kosmo-Kern ${i}`, f, a.ORBIT_PALETTE));
+  a.KOSMO_MODULE_FRAMES.forEach((f, i) => show(`Kosmo-Modul ${i}`, f, a.ORBIT_PALETTE));
+  show('Kosmo-Wrack', a.KOSMO_WRECK_ROWS, a.ORBIT_PALETTE);
+  show('Gittermast', a.paintTruss(), a.ORBIT_PALETTE);
+  show('Solarsegel', a.SAIL_ROWS, a.ORBIT_PALETTE);
+  a.UNITAS_MODULE_FRAMES.forEach((f, i) => show(`Unitas-Modul ${i}`, f, a.ORBIT_PALETTE));
+  show('Arm', a.ARM_SEGMENT_ROWS, a.ORBIT_PALETTE);
+  show('Greifer', a.ARM_CLAW_ROWS, a.ORBIT_PALETTE);
+});
+import('../gfx/fleetArt').then((a) => {
+  show('Gabelflügler', a.FORK_ROWS, a.FLEET_PALETTE);
+  show('Ass', a.ACE_ROWS, a.FLEET_PALETTE);
+  show('Anführer', a.ACE_LEADER_ROWS, a.FLEET_PALETTE);
+  show('Kanonenboot', a.GUNBOAT_ROWS, a.FLEET_PALETTE);
+  show('Bolzen', a.BOLT_ROWS, a.FLEET_PALETTE);
+  show('Odysseus', a.paintOdysseus(), a.FLEET_PALETTE);
+  show('Schildring', a.ODY_SHIELD_FRAMES[0], a.FLEET_PALETTE);
+  show('Torpedo', a.TORPEDO_ROWS, a.FLEET_PALETTE);
+  show('Weltenbrecher', a.paintWorldbreaker(), a.FLEET_PALETTE);
+  a.CONDUIT_FRAMES.forEach((f, i) => show(`Leiter ${i}`, f, a.FLEET_PALETTE));
+  a.LENS_FRAMES.forEach((f, i) => show(`Linse ${i}`, f, a.FLEET_PALETTE));
 });

@@ -40,6 +40,25 @@ export function frustumRectAtZ(camera: THREE.PerspectiveCamera, z: number, aspec
   return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
 }
 
+/** Ein Schiff als Ziel für Gegner, Münzen und Kapseln. */
+export interface Target {
+  x: number;
+  y: number;
+  alive: boolean;
+}
+
+/** Nächstes lebendes Ziel (oder null). */
+export function nearest<T extends Target>(targets: readonly T[], x: number, y: number): T | null {
+  let best: T | null = null;
+  let bestD = Infinity;
+  for (const t of targets) {
+    if (!t.alive) continue;
+    const d = (t.x - x) ** 2 + (t.y - y) ** 2;
+    if (d < bestD) [best, bestD] = [t, d];
+  }
+  return best;
+}
+
 export function randRange(min: number, max: number): number {
   return min + Math.random() * (max - min);
 }

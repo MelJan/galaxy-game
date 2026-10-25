@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { FIELD, PIXEL, PLAYER } from '../config';
-import type { Input } from '../core/Input';
+import type { Controls } from '../core/Input';
+import type { Palette } from '../gfx/pixel';
 import type { Particles } from '../fx/Particles';
 import { POWERUP_PALETTE, SHIELD_FRAMES } from '../gfx/bossArt';
 import { makePixelTexture, PixelSprite } from '../gfx/pixel';
@@ -66,8 +67,11 @@ export class Player {
   private fireCooldown = 0;
   private animTime = 0;
 
-  constructor(scene: THREE.Scene) {
-    this.frames = buildShipFrames();
+  /** Startposition (x) – im Zweispieler-Modus links bzw. rechts. */
+  startX = 0;
+
+  constructor(scene: THREE.Scene, palette?: Palette) {
+    this.frames = buildShipFrames(palette);
     this.ship = new PixelSprite(
       this.frames.map((f) => f.texture),
       SHIP_WIDTH,
@@ -126,7 +130,7 @@ export class Player {
   reset(): void {
     this.shieldHits = this.shieldTime = this.fanTime = 0;
     this.shieldGenTimer = 0;
-    this.position.set(0, START_Y);
+    this.position.set(this.startX, START_Y);
     this.velocity.set(0, 0);
     this.invulnerable = 0;
     this.fireCooldown = 0;
@@ -156,7 +160,7 @@ export class Player {
   }
 
   /** gunsEnabled = false, solange der Dauerlaser die normalen Kanonen ersetzt. */
-  update(dt: number, input: Input, bullets: BulletPool, engineFx: Particles, sparkFx: Particles, gunsEnabled = true): void {
+  update(dt: number, input: Controls, bullets: BulletPool, engineFx: Particles, sparkFx: Particles, gunsEnabled = true): void {
     if (!this.alive) return;
     this.animTime += dt;
     this.invulnerable = Math.max(0, this.invulnerable - dt);
@@ -178,7 +182,7 @@ export class Player {
     if (gunsEnabled) this.shoot(dt, input, bullets, sparkFx);
   }
 
-  private move(dt: number, input: Input): void {
+  private move(dt: number, input: Controls): void {
     this.target.set(input.axisX, input.axisY);
     if (this.target.lengthSq() > 1) this.target.normalize();
     this.target.multiplyScalar(PLAYER.speed * this.stats.speedMul);
@@ -244,7 +248,7 @@ export class Player {
     }
   }
 
-  private shoot(dt: number, input: Input, bullets: BulletPool, sparkFx: Particles): void {
+  private shoot(dt: number, input: Controls, bullets: BulletPool, sparkFx: Particles): void {
     this.fireCooldown -= dt;
     if (!input.fire) {
       this.fireCooldown = Math.max(this.fireCooldown, 0);

@@ -19,13 +19,21 @@ export type SongId =
   | 'terran'
   | 'crystal'
   | 'urschleim'
-  | 'starship'
+  | 'rocket'
   | 'fortress'
   | 'shardswarm'
   | 'void'
   | 'deep'
   | 'singularity'
-  | 'leviathan';
+  | 'leviathan'
+  | 'orbit'
+  | 'fleet'
+  | 'cabrio'
+  | 'kosmograd'
+  | 'unitas'
+  | 'squadron'
+  | 'odysseus'
+  | 'worldbreaker';
 
 export interface Song {
   style: SongStyle;
@@ -168,7 +176,7 @@ export const SONGS: Record<SongId, Song> = {
     ],
   },
   // Stahlrakete: heroischer Startcountdown-Marsch
-  starship: {
+  rocket: {
     style: 'terran',
     tempo: 150,
     bassRoots: [38, 38, 41, 36],
@@ -252,7 +260,109 @@ export const SONGS: Record<SongId, Song> = {
       [48, 76, 4], [52, 73, 4], [56, 69, 8],
     ],
   },
+  // Sektor 9: Orbitalfriedhof – schwebend, etwas wehmütig, F-Dur
+  orbit: {
+    style: 'ascend',
+    tempo: 104,
+    bassRoots: [41, 38, 46, 36],
+    chords: [[65, 69, 72], [62, 65, 69], [58, 62, 65], [60, 64, 67]],
+    melody: [
+      [0, 77, 4], [4, 76, 2], [6, 74, 2], [8, 72, 6], [14, 69, 2],
+      [16, 74, 4], [20, 72, 2], [22, 70, 2], [24, 69, 8],
+      [32, 70, 4], [36, 72, 2], [38, 74, 2], [40, 77, 6], [46, 74, 2],
+      [48, 72, 4], [52, 76, 4], [56, 79, 8],
+    ],
+  },
+  // Sektor 10: Sternenflotten – heroischer Marsch, G-Dur
+  fleet: {
+    style: 'terran',
+    tempo: 124,
+    bassRoots: [43, 40, 36, 38],
+    chords: [[67, 71, 74], [64, 67, 71], [60, 64, 67], [62, 66, 69]],
+    melody: [
+      [0, 74, 3], [3, 74, 1], [4, 79, 4], [8, 78, 2], [10, 76, 2], [12, 74, 4],
+      [16, 71, 3], [19, 71, 1], [20, 76, 4], [24, 74, 2], [26, 72, 2], [28, 71, 4],
+      [32, 72, 3], [35, 72, 1], [36, 76, 4], [40, 79, 2], [42, 83, 2], [44, 81, 4],
+      [48, 78, 3], [51, 76, 1], [52, 74, 4], [56, 78, 4], [60, 79, 4],
+    ],
+  },
+  // Sternencabrio: Autoradio-Chiptune, gut gelaunt, C-Dur
+  cabrio: {
+    style: 'chip',
+    tempo: 150,
+    bassRoots: [36, 41, 43, 36],
+    chords: [[60, 64, 67], [65, 69, 72], [67, 71, 74], [60, 64, 67]],
+    melody: [
+      [0, 72, 2], [2, 76, 2], [4, 79, 2], [6, 76, 2], [8, 81, 4], [12, 79, 4],
+      [16, 77, 2], [18, 81, 2], [20, 84, 2], [22, 81, 2], [24, 77, 4], [28, 76, 4],
+      [32, 74, 2], [34, 77, 2], [36, 83, 2], [38, 79, 2], [40, 74, 4], [44, 71, 4],
+      [48, 72, 2], [50, 76, 2], [52, 79, 2], [54, 84, 2], [56, 79, 4], [60, 72, 4],
+    ],
+  },
+  // Kosmograd: harmonisches Moll, schwerer Marsch
+  kosmograd: {
+    style: 'terran',
+    tempo: 132,
+    bassRoots: [38, 38, 34, 33],
+    chords: [[62, 65, 69], [62, 65, 69], [58, 62, 65], [57, 61, 64]],
+    melody: [
+      [0, 74, 4], [4, 73, 2], [6, 74, 2], [8, 77, 4], [12, 76, 4],
+      [16, 74, 2], [18, 72, 2], [20, 70, 4], [24, 69, 8],
+      [32, 70, 4], [36, 72, 2], [38, 74, 2], [40, 76, 4], [44, 77, 4],
+      [48, 76, 2], [50, 74, 2], [52, 73, 4], [56, 69, 8],
+    ],
+  },
+  // Unitas: weit, schwebend, mit Glocken
+  unitas: {
+    style: 'ark',
+    tempo: 140,
+    bassRoots: [41, 43, 38, 36],
+    chords: [[65, 69, 72], [67, 71, 74], [62, 65, 69], [60, 64, 67]],
+    melody: [
+      [0, 77, 2], [2, 81, 2], [4, 84, 4], [8, 83, 2], [10, 81, 2], [12, 79, 4],
+      [16, 79, 2], [18, 83, 2], [20, 86, 4], [24, 84, 4], [28, 79, 4],
+      [32, 81, 2], [34, 77, 2], [36, 74, 4], [40, 77, 2], [42, 81, 2], [44, 84, 4],
+      [48, 84, 2], [50, 83, 2], [52, 79, 4], [56, 76, 4], [60, 72, 4],
+    ],
+  },
+  // Rebellenstaffel: schneller Luftkampf
+  squadron: {
+    style: 'mothership',
+    tempo: 164,
+    bassRoots: [40, 36, 38, 35],
+    chords: [[64, 67, 71], [60, 64, 67], [62, 66, 69], [59, 63, 66]],
+    melody: [
+      [0, 76, 2], [2, 79, 2], [4, 83, 2], [6, 81, 2], [8, 79, 4], [12, 76, 4],
+      [16, 72, 2], [18, 76, 2], [20, 79, 4], [24, 78, 4], [28, 74, 4],
+      [32, 74, 2], [34, 78, 2], [36, 81, 2], [38, 83, 2], [40, 86, 4], [44, 83, 4],
+      [48, 78, 2], [50, 75, 2], [52, 71, 4], [56, 75, 4], [60, 78, 4],
+    ],
+  },
+  // Odysseus: geheimnisvoll, lydisch
+  odysseus: {
+    style: 'ascend',
+    tempo: 126,
+    bassRoots: [38, 40, 36, 43],
+    chords: [[62, 66, 69], [64, 68, 71], [60, 64, 67], [67, 71, 74]],
+    melody: [
+      [0, 74, 4], [4, 78, 2], [6, 80, 2], [8, 81, 6], [14, 78, 2],
+      [16, 76, 4], [20, 80, 4], [24, 83, 8],
+      [32, 79, 4], [36, 76, 2], [38, 74, 2], [40, 72, 6], [46, 76, 2],
+      [48, 79, 4], [52, 83, 4], [56, 86, 8],
+    ],
+  },
+  // Weltenbrecher: wuchtig, unerbittlich, c-Moll
+  worldbreaker: {
+    style: 'queen',
+    tempo: 108,
+    bassRoots: [36, 36, 32, 31],
+    chords: [[48, 51, 55], [48, 51, 55], [44, 48, 51], [43, 47, 50]],
+    melody: [
+      [0, 72, 6], [8, 75, 6], [16, 79, 8], [24, 78, 8],
+      [32, 75, 6], [40, 74, 6], [48, 72, 8], [56, 71, 8],
+    ],
+  },
 };
 
 /** Stück je Sektor (außerhalb von Bosskämpfen). */
-export const SECTOR_SONGS: SongId[] = ['chip', 'swarm', 'ascend', 'slime', 'terran', 'crystal', 'void', 'deep'];
+export const SECTOR_SONGS: SongId[] = ['chip', 'swarm', 'ascend', 'slime', 'terran', 'crystal', 'void', 'deep', 'orbit', 'fleet'];
