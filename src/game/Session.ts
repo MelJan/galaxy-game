@@ -530,12 +530,20 @@ export class Session {
       this.shop.handleInput(input);
       return;
     }
+    // Werft oder Abspann beginnen: den Rest dieses Schritts auslassen, sonst schalten die Waffen
+    // (Feuerknopf noch gedrückt) den Laser wieder ein und sein Dauerton läuft im Menü weiter
     if (this.outroTimer !== null && this.state === 'playing') {
       this.outroTimer -= dt;
-      if (this.outroTimer <= 0) this.startOutro();
+      if (this.outroTimer <= 0) {
+        this.startOutro();
+        return;
+      }
     } else if (this.shopTimer !== null && this.state === 'playing') {
       this.shopTimer -= dt;
-      if (this.shopTimer <= 0) this.openShop(input);
+      if (this.shopTimer <= 0) {
+        this.openShop(input);
+        return;
+      }
     }
 
     if (this.state === 'gameover') {
