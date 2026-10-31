@@ -158,6 +158,8 @@ export class Session {
   private stateTimer = 0;
   private pendingSector: number | null = null;
   private laserSparkTimer = 0;
+  /** Gerade trifft der Laser: Treffergeräusche durch das leise Laser-Brutzeln ersetzen. */
+  private laserContact = false;
   private beamsCharging = 0;
   private beamsFiring = 0;
 
@@ -766,6 +768,7 @@ export class Session {
     const spark = this.laserSparkTimer <= 0;
     if (spark) this.laserSparkTimer = 0.05;
 
+    this.laserContact = true;
     if (enemy && enemy.type.coreRadius && Math.abs(enemy.x - beam.x) > enemy.type.coreRadius + hw) {
       // Die Membran schluckt den Laser, nur der Zellkern nimmt Schaden
       if (spark) this.membraneHit(beam.x, hitY);
@@ -778,9 +781,10 @@ export class Session {
       } else if (spark) {
         if (t) this.shieldSparks(beam.x, hitY);
         else impactSparks(this.fx.sparks, beam.x, hitY);
-        this.sound.clink(this.boss?.material);
+        this.sound.laserHit();
       }
     }
+    this.laserContact = false;
   }
 
   /** Lade- und Feuergeräusch, sobald ein feindlicher Strahl beginnt. */
@@ -992,7 +996,7 @@ export class Session {
       sparks: (x, y) => impactSparks(this.fx.sparks, x, y),
       shieldSparks: (x, y) => this.shieldSparks(x, y),
       smoke: (x, y) => this.fx.fire.emit(x, y, randRange(-0.5, 0.5), randRange(1.5, 3), randRange(0.3, 0.6)),
-      hit: () => this.sound.hit(this.boss?.material),
+      hit: () => (this.laserContact ? this.sound.laserHit() : this.sound.hit(this.boss?.material)),
       deflect: () => this.sound.clink(this.boss?.material),
       partDestroyed: (x, y, score, coins, repair) => {
         this.addScore(score);
@@ -1057,10 +1061,12 @@ export class Session {
     else if (!effects) return;
     else if (result === 'shielded') {
       this.shieldSparks(x, y);
-      this.sound.shieldZap();
+      if (this.laserContact) this.sound.laserHit();
+      else this.sound.shieldZap();
     } else {
       impactSparks(this.fx.sparks, x, y);
-      this.sound.hit(e.type.material);
+      if (this.laserContact) this.sound.laserHit();
+      else this.sound.hit(e.type.material);
     }
     // Prismen werfen Treffer als Splitter auf den Spieler zurück
     if (result === 'hit' && e.reflectReady()) {
@@ -1075,7 +1081,8 @@ export class Session {
   /** Schuss bleibt in der Membran einer Amöbe stecken. */
   private membraneHit(x: number, y: number): void {
     for (let i = 0; i < 4; i++) this.fx.sparks.emit(x, y, randRange(-4, 4), randRange(-1, 5), 0.2, MEMBRANE_SPARK);
-    this.sound.clink('slime');
+    if (this.laserContact) this.sound.laserHit();
+    else this.sound.clink('slime');
   }
 
   private collide(): void {

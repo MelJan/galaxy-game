@@ -440,6 +440,15 @@ export class Sound {
     }
   }
 
+  /**
+   * Laser trifft etwas: leises, helles Brutzeln ohne Rauschen, höchstens etwa sechsmal pro Sekunde.
+   * Das normale Treffergeräusch würde beim Dauerfeuer zu einem durchgehenden Zischen verschmelzen.
+   */
+  laserHit(): void {
+    if (!this.throttle('laserHit', 0.16)) return;
+    this.tone({ type: 'triangle', freq: vary(1300, 0.1), to: 900, dur: 0.05, vol: 0.02 });
+  }
+
   missile(): void {
     if (!this.throttle('missile', 0.1)) return;
     this.noise({ dur: 0.25, vol: 0.08, filter: 'bandpass', freq: vary(1600), to: 400 });
