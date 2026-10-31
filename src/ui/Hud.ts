@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+
 /** Anzeige über dem Spiel: Score, Gold, Hülle, Wellen-Banner, Game Over. */
 export class Hud {
   private readonly score = document.getElementById('score')!;
@@ -36,7 +38,7 @@ export class Hud {
   /** Zweite Hüllenanzeige nur im Zweispieler-Modus; Beschriftung „P1“/„P2“ statt „HÜLLE“. */
   setPlayers(n: number): void {
     document.getElementById('hull2-row')!.classList.toggle('hidden', n < 2);
-    document.getElementById('hull-label')!.textContent = n < 2 ? 'HÜLLE' : 'P1';
+    document.getElementById('hull-label')!.textContent = n < 2 ? t('HÜLLE') : 'P1';
   }
 
   showBanner(title: string, subtitle = '', warn = false, duration = 2200): void {
@@ -94,7 +96,9 @@ export class Hud {
   showGameOver(score: number, best: number, isNew: boolean, difficulty: string): void {
     this.finalScore.textContent = String(score).padStart(7, '0');
     const el = document.getElementById('go-best')!;
-    el.textContent = isNew ? `NEUER REKORD AUF ${difficulty}!` : `REKORD ${difficulty} ${String(best).padStart(7, '0')}`;
+    el.textContent = isNew
+      ? t('NEUER REKORD AUF {name}!', { name: difficulty })
+      : t('REKORD {name} {score}', { name: difficulty, score: String(best).padStart(7, '0') });
     el.classList.toggle('new', isNew);
     this.gameOver.classList.remove('hidden');
   }
@@ -104,6 +108,6 @@ export class Hud {
   }
 
   setAudio(sound: boolean, music: boolean): void {
-    this.audio.textContent = `${sound ? '' : 'TON AUS  '}${music ? '' : 'MUSIK AUS'}`.trim();
+    this.audio.textContent = `${sound ? '' : t('TON AUS') + '  '}${music ? '' : t('MUSIK AUS')}`.trim();
   }
 }

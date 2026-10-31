@@ -1,3 +1,5 @@
+import { t } from '../i18n';
+
 import { TouchDrag } from './Touch';
 
 const BLOCKED_KEYS = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
@@ -148,9 +150,9 @@ export class Input {
 
   /** Wer steuert welchen Spieler im Koop gerade? (Für den Hinweis auf dem Titelbildschirm.) */
   get coopDevices(): [string, string] {
-    if (this.pads.size >= 2) return ['CONTROLLER 1 / WASD', 'CONTROLLER 2 / PFEILE + ENTER'];
-    if (this.pads.size === 1) return ['TASTATUR', 'CONTROLLER'];
-    return ['WASD + LEERTASTE', 'PFEILTASTEN + ENTER'];
+    if (this.pads.size >= 2) return [t('CONTROLLER 1 / WASD'), t('CONTROLLER 2 / PFEILE + ENTER')];
+    if (this.pads.size === 1) return [t('TASTATUR'), 'CONTROLLER'];
+    return [t('WASD + LEERTASTE'), t('PFEILTASTEN + ENTER')];
   }
 
   /** Einmal pro Frame aufrufen: Gamepads abfragen und Menütasten erzeugen. */

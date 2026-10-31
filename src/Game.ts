@@ -19,6 +19,8 @@ import { Asteroids } from './world/Asteroids';
 import { Nebula } from './world/Nebula';
 import { Planets } from './world/Planets';
 import { Starfield } from './world/Starfield';
+import { onLangChange, t } from './i18n';
+import { translateDom } from './i18n/dom';
 
 /** Obergrenze der Render-Auflösung auf Handy und Tablet (Bildpunkte im Smooth-Modus, vor der automatischen Anpassung). */
 const TOUCH_PIXELS = 2_000_000;
@@ -77,6 +79,12 @@ export class Game {
     loadGfxMode();
     this.setupTouch();
     this.updateGfxButton();
+    // Feste Texte der Oberfläche in der gewählten Sprache, auch nach jedem Wechsel
+    translateDom();
+    onLangChange(() => {
+      translateDom();
+      this.updateGfxButton();
+    });
 
     this.scene.background = new THREE.Color(0x02030a);
     this.camera = new THREE.PerspectiveCamera(CAMERA.fov, 1, 0.5, 2000);
@@ -132,7 +140,7 @@ export class Game {
     // Hinweis beim Verbinden oder Trennen eines Controllers
     this.input.onPadChange = (connected, slot, id) => {
       const name = id.replace(/\(.*?\)/g, '').trim().slice(0, 32).toUpperCase();
-      this.hud.showBanner(`CONTROLLER ${slot} ${connected ? 'VERBUNDEN' : 'GETRENNT'}`, name, !connected, 2200);
+      this.hud.showBanner(t(`CONTROLLER ${slot} ${connected ? 'VERBUNDEN' : 'GETRENNT'}`), name, !connected, 2200);
       this.sound.shopMove();
     };
   }
@@ -350,7 +358,7 @@ export class Game {
   /** Beschriftung des Grafik-Knopfs im Pausenmenü (Touch). */
   private updateGfxButton(): void {
     const btn = document.getElementById('pause-gfx');
-    if (btn) btn.textContent = `GRAFIK: ${GFX.smooth ? 'SMOOTH' : 'RETRO'}`;
+    if (btn) btn.textContent = `${t('GRAFIK')}: ${GFX.smooth ? 'SMOOTH' : 'RETRO'}`;
   }
 
   private onResize(): void {

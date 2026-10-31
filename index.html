@@ -32,7 +32,7 @@
         <div class="bossbar-track"><div id="bossfill"></div></div>
       </div>
       <div id="banner" class="hidden"></div>
-      <div id="hint">
+      <div id="hint" data-i18n>
         <span class="key-only">
           WASD / Pfeiltasten: bewegen &middot; Leertaste: schießen &middot; P: Pause &middot; Controller: Stick, A, Start<br />
           G: Grafik smooth/retro &middot; M: Musik &middot; N: Ton
@@ -41,10 +41,10 @@
       </div>
       <button id="touch-pause" class="touch-btn touch-only hidden" aria-label="Pause">II</button>
       <div id="pause" class="hidden">
-        PAUSE<small class="key-only">P / START: WEITER &middot; S / Y: SPEICHERN</small>
+        PAUSE<small class="key-only" data-i18n>P / START: WEITER &middot; S / Y: SPEICHERN</small>
         <div class="touch-only touch-row">
-          <button id="pause-resume" class="touch-btn">WEITER</button>
-          <button id="pause-save" class="touch-btn">SPEICHERN</button>
+          <button id="pause-resume" class="touch-btn" data-i18n>WEITER</button>
+          <button id="pause-save" class="touch-btn" data-i18n>SPEICHERN</button>
         </div>
         <div class="touch-only touch-row">
           <button id="pause-gfx" class="touch-btn">GRAFIK: SMOOTH</button>
@@ -55,16 +55,16 @@
           <div id="saves-title"></div>
           <div id="saves-list"></div>
           <div id="saves-hint"></div>
-          <button id="saves-back" class="touch-btn touch-only">ZURÜCK</button>
+          <button id="saves-back" class="touch-btn touch-only" data-i18n>ZURÜCK</button>
         </div>
       </div>
       <div id="title" class="hidden">
         <div class="title-logo">GALAXY<br />GAME</div>
         <div id="title-players"></div>
-        <div class="title-label">SCHWIERIGKEIT</div>
+        <div class="title-label" data-i18n>SCHWIERIGKEIT</div>
         <div id="title-list"></div>
-        <div class="title-hint key-only">HOCH/RUNTER: SCHWIERIGKEIT &middot; LINKS/RECHTS: SPIELER &middot; ENTER / A: STARTEN</div>
-        <div class="title-hint touch-only">SCHWIERIGKEIT ANTIPPEN ZUM STARTEN</div>
+        <div class="title-hint key-only" data-i18n>HOCH/RUNTER: SCHWIERIGKEIT &middot; LINKS/RECHTS: SPIELER &middot; ENTER / A: STARTEN</div>
+        <div class="title-hint touch-only" data-i18n>SCHWIERIGKEIT ANTIPPEN ZUM STARTEN</div>
       </div>
       <div id="story" class="hidden">
         <div id="story-panel">
@@ -72,7 +72,7 @@
           <div class="story-text"><span id="story-typed"></span><span id="story-ghost"></span></div>
         </div>
         <div id="story-roll" class="hidden"></div>
-        <div class="story-hint">
+        <div class="story-hint" data-i18n>
           <span class="key-only">ENTER: WEITER &middot; ESC: ÜBERSPRINGEN</span>
           <span class="touch-only">ANTIPPEN: WEITER</span>
           <button id="story-skip" class="touch-btn touch-only">ÜBERSPRINGEN</button>
@@ -82,49 +82,49 @@
         <div class="saves-panel credits-panel">
           <div class="credits-title">CREDITS</div>
           <p>GALAXY GAME<br /><span class="dim">© 2026 JAN MELCHIOR</span></p>
-          <p class="dim">GRAFIK, SOUNDEFFEKTE UND MUSIK SIND VOLLSTÄNDIG IM CODE ERZEUGT.</p>
-          <p class="dim">
+          <p class="dim" data-i18n>GRAFIK, SOUNDEFFEKTE UND MUSIK SIND VOLLSTÄNDIG IM CODE ERZEUGT.</p>
+          <p class="dim" data-i18n>
             SPIELEN, KOPIEREN, WEITERGEBEN UND VERÄNDERN IST ERLAUBT, ABER NICHT KOMMERZIELL:
             <a href="licenses/LICENSE.txt" target="_blank" rel="noopener">POLYFORM NONCOMMERCIAL 1.0.0</a>
           </p>
-          <div class="credits-head">VERWENDETE SOFTWARE</div>
-          <p>THREE.JS<br /><span class="dim">© 2010–2026 THREE.JS AUTHORS · MIT-LIZENZ</span></p>
-          <p>
+          <div class="credits-head" data-i18n>VERWENDETE SOFTWARE</div>
+          <p>THREE.JS<br /><span class="dim" data-i18n>© 2010–2026 THREE.JS AUTHORS · MIT-LIZENZ</span></p>
+          <p data-i18n>
             PRESS START 2P (SCHRIFT) VON CODEMAN38<br /><span class="dim">© 2012 THE PRESS START 2P PROJECT AUTHORS · SIL OPEN FONT LICENSE 1.1</span>
           </p>
-          <p class="dim">
+          <p class="dim" data-i18n>
             VOLLSTÄNDIGE LIZENZTEXTE:
             <a href="licenses/THIRD_PARTY_NOTICES.txt" target="_blank" rel="noopener">LICENSES/THIRD_PARTY_NOTICES.TXT</a>
           </p>
-          <div id="saves-hint"><span class="key-only">ESC / ENTER: ZURÜCK</span><span class="touch-only">ANTIPPEN: ZURÜCK</span></div>
+          <div id="saves-hint" data-i18n><span class="key-only">ESC / ENTER: ZURÜCK</span><span class="touch-only">ANTIPPEN: ZURÜCK</span></div>
         </div>
       </div>
       <div id="shop" class="hidden">
         <div class="shop-panel">
           <div class="shop-head">
-            <div class="shop-title">WERFT</div>
+            <div class="shop-title" data-i18n>WERFT</div>
             <div class="shop-stats">
-              <span>HÜLLE <b id="shop-hull"></b></span>
+              <span><span data-i18n>HÜLLE</span> <b id="shop-hull"></b></span>
               <span><span class="coin"></span><b id="shop-gold"></b></span>
             </div>
           </div>
           <div id="shop-grid"></div>
           <div class="shop-buttons">
-            <button id="shop-continue">WEITERFLIEGEN</button>
-            <button id="shop-save">SPEICHERN</button>
+            <button id="shop-continue" data-i18n>WEITERFLIEGEN</button>
+            <button id="shop-save" data-i18n>SPEICHERN</button>
           </div>
-          <div class="shop-hint key-only">PFEILTASTEN: AUSWÄHLEN &middot; LEERTASTE: KAUFEN &middot; ESC: WEITER</div>
+          <div class="shop-hint key-only" data-i18n>PFEILTASTEN: AUSWÄHLEN &middot; LEERTASTE: KAUFEN &middot; ESC: WEITER</div>
         </div>
       </div>
       <div id="gameover" class="hidden">
         <div class="go-title">GAME OVER</div>
         <div>SCORE <b id="final-score">0</b></div>
         <div id="go-best"></div>
-        <div class="go-hint key-only">ENTER: NEUSTART</div>
-        <div class="go-sub key-only">ESC: SCHWIERIGKEIT WÄHLEN</div>
+        <div class="go-hint key-only" data-i18n>ENTER: NEUSTART</div>
+        <div class="go-sub key-only" data-i18n>ESC: SCHWIERIGKEIT WÄHLEN</div>
         <div class="touch-only touch-row">
-          <button id="go-restart" class="touch-btn">NEUSTART</button>
-          <button id="go-menu" class="touch-btn">SCHWIERIGKEIT</button>
+          <button id="go-restart" class="touch-btn" data-i18n>NEUSTART</button>
+          <button id="go-menu" class="touch-btn" data-i18n>SCHWIERIGKEIT</button>
         </div>
       </div>
     </div>

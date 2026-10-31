@@ -1,6 +1,7 @@
 import type { Input } from '../core/Input';
 import { ICON_PALETTE, UPGRADES, type UpgradeDef, type Upgrades } from '../game/Upgrades';
 import { renderPixelArt } from '../gfx/pixel';
+import { t } from '../i18n';
 
 export type BuyResult = 'ok' | 'poor' | 'max' | 'full';
 
@@ -137,9 +138,9 @@ export class Shop {
       const price = s.upgrades.price(def);
       const full = def.id === 'repair' && s.hull >= s.maxHull;
       const [name, pips, effect, priceEl] = [...card.querySelectorAll('div')];
-      name.textContent = def.name;
+      name.textContent = t(def.name);
       pips.innerHTML = def.repeat ? '' : def.prices.map((_, k) => `<i class="${k < level ? 'on' : ''}"></i>`).join('');
-      effect.textContent = price === null ? 'AUSGEBAUT' : full ? 'HÜLLE IST VOLL' : def.effects[Math.min(level, def.effects.length - 1)];
+      effect.textContent = t(price === null ? 'AUSGEBAUT' : full ? 'HÜLLE IST VOLL' : def.effects[Math.min(level, def.effects.length - 1)]);
       priceEl.innerHTML = price === null ? 'MAX' : `<span class="coin"></span>${price}`;
       card.classList.toggle('focus', this.focus === i);
       card.classList.toggle('maxed', price === null || full);

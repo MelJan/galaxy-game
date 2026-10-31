@@ -1,6 +1,7 @@
 import { FIELD } from '../config';
 import { DEV } from '../dev/flags';
 import type { Difficulty, EnemyTypeId, PatternId, PatternParams } from '../entities/Enemies';
+import { t } from '../i18n';
 
 /**
  * Eine Gruppe gleicher Gegner innerhalb einer Welle.
@@ -760,8 +761,13 @@ export class WaveDirector {
   static label(p: WaveProgress): string {
     const e = ENTRIES[p.entry % ENTRIES.length];
     const s = SECTORS[e.sector];
-    const what = e.kind === 'boss' ? e.name : `WELLE ${p.waveNumber + 1}`;
-    return `${s.name} · ${s.subtitle} — ${what}`;
+    const what = e.kind === 'boss' ? t(e.name) : t(`WELLE ${p.waveNumber + 1}`);
+    return `${t(s.name)} · ${t(s.subtitle)} — ${what}`;
+  }
+
+  /** Name eines Spielstands in der aktuellen Sprache (der gespeicherte Name stammt aus der Sprache beim Speichern). */
+  static labelOf(save: { position: SavePosition; waveNumber: number; loop: number }): string {
+    return WaveDirector.label({ entry: WaveDirector.entryOf(save.position), waveNumber: save.waveNumber, loop: save.loop });
   }
 
   /** Läuft gerade der letzte Endgegner der Kampagne? */

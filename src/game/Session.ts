@@ -54,6 +54,7 @@ import { Upgrades, UPGRADES, type UpgradeDef, type UpgradeId } from './Upgrades'
 import { SECTORS, WaveDirector, type BossId } from './Waves';
 import { LASER_DPS, LASER_TIME, LASER_WIDTH, MISSILE_DAMAGE, MISSILE_TIME, OPTION_TIME, Weapons } from './Weapons';
 import { FAN_TIME, SHIELD_TIME } from '../entities/Player';
+import { getLang, onLangChange, setLang, t } from '../i18n';
 
 export interface SessionFx {
   engine: Particles;
@@ -239,9 +240,20 @@ export class Session {
         this.creditsOpen = true;
         document.getElementById('credits')!.classList.remove('hidden');
       },
+      language: () => {
+        setLang(getLang() === 'de' ? 'en' : 'de');
+        this.sound.shopMove();
+      },
       move: () => this.sound.shopMove(),
     });
     this.story = new Story(() => this.sound.typeKey());
+    // Sprachwechsel: alle von hier gesetzten Texte neu schreiben
+    onLangChange(() => {
+      this.title.renderTexts();
+      this.hud.setPlayers(this.players);
+      this.applyDifficulty();
+      this.refreshHud();
+    });
     this.saveMenu = new SaveMenu({
       save: (slot) => this.saveTo(slot),
       load: (data) => this.loadSave(data),
@@ -325,7 +337,7 @@ export class Session {
     pl.ship.reset();
     pl.ship.hit();
     pl.hull = Math.ceil(this.maxHull / 2);
-    this.hud.showBanner(`SPIELER ${index + 1}`, 'IST WIEDER DABEI', false, 1800);
+    this.hud.showBanner(t(`SPIELER ${index + 1}`), t('IST WIEDER DABEI'), false, 1800);
     this.sound.powerUp('repair');
     this.refreshHud();
   }
@@ -340,7 +352,7 @@ export class Session {
     const go = () => {
       this.endStory();
       this.hud.showHint();
-      this.hud.showBanner(this.players === 2 ? 'GUTEN FLUG, PILOTEN!' : 'GUTEN FLUG, PILOT!', '', false, 1500);
+      this.hud.showBanner(t(this.players === 2 ? 'GUTEN FLUG, PILOTEN!' : 'GUTEN FLUG, PILOT!'), '', false, 1500);
       this.sound.waveStart();
     };
     if (this.bot) go();
@@ -356,7 +368,7 @@ export class Session {
     this.waves.countMul = this.setting.count;
     this.waves.fireMul = this.setting.enemyFire;
     this.waves.speedMul = this.setting.speed;
-    this.hud.setDifficulty(this.setting.name, this.setting.color);
+    this.hud.setDifficulty(t(this.setting.name), this.setting.color);
   }
 
   private addScore(points: number): void {
@@ -422,7 +434,7 @@ export class Session {
     this.pilots[0].hull = Math.max(1, Math.min(this.maxHull, data.hull));
     this.pilots[1].hull = Math.max(1, Math.min(this.maxHull, data.hull2));
     this.waves.restore({ entry: WaveDirector.entryOf(data.position), waveNumber: data.waveNumber, loop: data.loop });
-    this.hud.showBanner('SPIELSTAND GELADEN', data.label, false, 2500);
+    this.hud.showBanner(t('SPIELSTAND GELADEN'), WaveDirector.labelOf(data), false, 2500);
     this.sound.shopOpen();
     this.refreshHud();
   }
@@ -439,11 +451,11 @@ export class Session {
       this.difficulty++;
       saveDifficulty(this.difficulty);
       this.applyDifficulty();
-      this.pendingCampaign = `WEITER AUF ${this.setting.name} · UPGRADES BLEIBEN`;
+      this.pendingCampaign = t('WEITER AUF {name} · UPGRADES BLEIBEN', { name: t(this.setting.name) });
       this.refreshHud();
       return false;
     }
-    this.pendingCampaign = `STUFE ${this.waves.loop + 2} · ES WIRD NOCH HÄRTER`;
+    this.pendingCampaign = t(`STUFE ${this.waves.loop + 2} · ES WIRD NOCH HÄRTER`);
     this.refreshHud();
     return true;
   }
@@ -565,7 +577,7 @@ export class Session {
         this.state = 'gameover';
         const run = DIFFICULTIES[this.startDifficulty];
         const isNew = submitHighscore(run.id, this.score);
-        this.hud.showGameOver(this.score, highscore(run.id), isNew, run.name);
+        this.hud.showGameOver(this.score, highscore(run.id), isNew, t(run.name));
         this.sound.gameOver();
       }
     }
@@ -659,7 +671,7 @@ export class Session {
     this.collide();
     this.collect(dt);
 
-    this.hud.setBoss(boss ? this.bossName + boss.hudSuffix() : null, boss ? boss.health() : 0);
+    this.hud.setBoss(boss ? t(this.bossName) + boss.hudSuffix() : null, boss ? boss.health() : 0);
     // Aktive Power-ups, im Koop mit vorangestelltem Spieler
     this.hud.setPowerUps(
       this.activePilots.flatMap((pl, i) => {
@@ -667,11 +679,11 @@ export class Session {
         const w = pl.weapons;
         const tag = this.players === 2 ? `P${i + 1} ` : '';
         return [
-          { label: `${tag}SCHILD ×${p.shieldHits}`, time: p.shielded ? p.shieldTime : 0, cls: 'pu-shield' },
-          { label: `${tag}FÄCHER`, time: p.fanTime, cls: 'pu-fan' },
+          { label: `${tag}${t('SCHILD')} ×${p.shieldHits}`, time: p.shielded ? p.shieldTime : 0, cls: 'pu-shield' },
+          { label: tag + t('FÄCHER'), time: p.fanTime, cls: 'pu-fan' },
           { label: `${tag}LASER`, time: w.laserTime, cls: 'pu-laser' },
-          { label: `${tag}RAKETEN`, time: w.missileTime, cls: 'pu-missile' },
-          { label: `${tag}BEGLEITER`, time: w.optionTime, cls: 'pu-option' },
+          { label: tag + t('RAKETEN'), time: w.missileTime, cls: 'pu-missile' },
+          { label: tag + t('BEGLEITER'), time: w.optionTime, cls: 'pu-option' },
         ];
       }),
     );
@@ -826,7 +838,7 @@ export class Session {
     this.missiles.clear();
     this.beams.clear();
     this.refreshHud();
-    this.playStory(outroSteps({ players: this.players, score: this.score, difficulty: this.setting.name }), () => {
+    this.playStory(outroSteps({ players: this.players, score: this.score, difficulty: t(this.setting.name) }), () => {
       this.endStory();
       // Die Werft öffnet gleich, bevor die nächste Runde beginnt
       this.shopTimer = 0.2;
@@ -925,7 +937,7 @@ export class Session {
       }
     }
     if (crossed(liftoff)) {
-      if (numbers) this.hud.showBanner('START!', '', false, 900);
+      if (numbers) this.hud.showBanner(t('START!'), '', false, 900);
       this.sound.ignite();
       this.hooks.shake(0.5);
     }
@@ -938,10 +950,10 @@ export class Session {
   }
 
   private onWaveStart(number: number, loop: number): void {
-    const stage = loop > 0 ? `STUFE ${loop + 1}` : '';
+    const stage = loop > 0 ? t(`STUFE ${loop + 1}`) : '';
     if (this.pendingCampaign !== null) {
       // Erste Welle nach dem Durchspielen
-      this.hud.showBanner('DURCHGESPIELT!', this.pendingCampaign, false, 4500);
+      this.hud.showBanner(t('DURCHGESPIELT!'), this.pendingCampaign, false, 4500);
       this.pendingCampaign = null;
       this.pendingSector = null;
       this.sound.glyphSuccess();
@@ -950,10 +962,10 @@ export class Session {
     if (this.pendingSector !== null) {
       // Erste Welle eines Sektors: Sektor-Banner statt Wellennummer
       const s = SECTORS[this.pendingSector];
-      this.hud.showBanner(s.name, stage ? `${s.subtitle} · ${stage}` : s.subtitle, false, 3200);
+      this.hud.showBanner(t(s.name), stage ? `${t(s.subtitle)} · ${stage}` : t(s.subtitle), false, 3200);
       this.pendingSector = null;
     } else {
-      this.hud.showBanner(`WELLE ${number}`, stage);
+      this.hud.showBanner(t(`WELLE ${number}`), stage);
     }
     this.sound.waveStart();
   }
@@ -969,7 +981,7 @@ export class Session {
   private startBoss(id: BossId, name: string): void {
     this.pendingSector = null;
     this.bossName = name;
-    this.hud.showBanner('WARNUNG', `${this.bossName} NÄHERT SICH`, true, 3500);
+    this.hud.showBanner(t('WARNUNG'), t('{boss} NÄHERT SICH', { boss: t(this.bossName) }), true, 3500);
     this.sound.bossWarning(id);
     this.sound.setMusic(id);
     const diff = this.waves.difficulty;
@@ -1007,9 +1019,9 @@ export class Session {
       shake: (amount) => this.hooks.shake(amount),
       opening: (title, subtitle) => {
         this.sound.doorOpen();
-        this.hud.showBanner(title, subtitle, true, 2200);
+        this.hud.showBanner(t(title), t(subtitle), true, 2200);
       },
-      banner: (title, subtitle, warn = false) => this.hud.showBanner(title, subtitle, warn, 1800),
+      banner: (title, subtitle, warn = false) => this.hud.showBanner(t(title), t(subtitle), warn, 1800),
       sfx: (name, arg) => {
         if (name === 'glyph') this.sound.glyph(arg ?? 0);
         else if (name === 'tick') this.sound.tick(!!arg);
@@ -1037,7 +1049,7 @@ export class Session {
         });
         const bonus = 20000 * (this.waves.loop + 1) * (this.waves.sector + 1);
         this.addScore(bonus);
-        this.hud.showBanner(this.boss?.defeatTitle ?? `${this.bossName} ZERSTÖRT`, `+${bonus}`, false, 3500);
+        this.hud.showBanner(t(this.boss?.defeatTitle ?? '{boss} ZERSTÖRT', { boss: t(this.bossName) }), `+${bonus}`, false, 3500);
         this.sound.setMusic('normal');
         this.powerUps.spawn('repair', x - 4, y);
         this.powerUps.spawn(randomPowerUp('repair'), x + 4, y);
@@ -1230,7 +1242,7 @@ export class Session {
     // Koop: solange der andere noch fliegt, geht es weiter, der Abgeschossene kommt später zurück
     if (this.activePilots.some((o) => o.ship.alive)) {
       pl.respawn = RESPAWN_TIME;
-      this.hud.showBanner(`SPIELER ${this.pilots.indexOf(pl) + 1} ABGESCHOSSEN`, `ZURÜCK IN ${RESPAWN_TIME} SEKUNDEN`, true, 2000);
+      this.hud.showBanner(t(`SPIELER ${this.pilots.indexOf(pl) + 1} ABGESCHOSSEN`), t(`ZURÜCK IN ${RESPAWN_TIME} SEKUNDEN`), true, 2000);
       return;
     }
     this.state = 'dying';
@@ -1259,7 +1271,7 @@ export class Session {
     const w = pl.weapons;
     this.sound.powerUp(kind);
     const tag = this.players === 2 ? `P${this.pilots.indexOf(pl) + 1}: ` : '';
-    const banner = (title: string, sub: string) => this.hud.showBanner(tag + title, sub, false, 1200);
+    const banner = (title: string, sub: string) => this.hud.showBanner(tag + t(title), t(sub), false, 1200);
     const time = (base: number) => Math.round(base * this.upgrades.durationMul);
     switch (kind) {
       case 'repair':

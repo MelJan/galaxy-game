@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadSlots, migrate, SAVE_VERSION, writeSlot, type SaveData } from './SaveGame';
 import { SECTORS, WaveDirector } from './Waves';
+import { setLang } from '../i18n';
+
+// Namen von Spielständen werden in der Spielsprache gebildet; die Tests prüfen die deutschen
+setLang('de');
 
 /** Einfacher localStorage-Ersatz für die Tests. */
 function fakeStorage(): Storage {

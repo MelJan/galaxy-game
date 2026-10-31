@@ -1,6 +1,8 @@
 import type { Input } from '../core/Input';
 import { DIFFICULTIES, difficultyIndex } from '../game/Difficulty';
 import { deleteSlot, formatTime, loadSlots, SLOT_COUNT, type SaveData } from '../game/SaveGame';
+import { t } from '../i18n';
+import { WaveDirector } from '../game/Waves';
 
 export type SaveMenuMode = 'save' | 'load';
 
@@ -67,11 +69,11 @@ export class SaveMenu {
       });
       this.selected = newest;
     }
-    this.title.textContent = mode === 'save' ? 'SPIEL SPEICHERN' : 'SPIEL LADEN';
+    this.title.textContent = t(mode === 'save' ? 'SPIEL SPEICHERN' : 'SPIEL LADEN');
     this.hint.innerHTML =
       mode === 'save'
-        ? 'PFEILTASTEN: SLOT WÄHLEN &middot; ENTER: SPEICHERN &middot; ENTF: LÖSCHEN &middot; ESC: ZURÜCK'
-        : 'PFEILTASTEN: WÄHLEN &middot; ENTER: LADEN &middot; ENTF: LÖSCHEN &middot; ESC: ZURÜCK';
+        ? t('PFEILTASTEN: SLOT WÄHLEN · ENTER: SPEICHERN · ENTF: LÖSCHEN · ESC: ZURÜCK')
+        : t('PFEILTASTEN: WÄHLEN · ENTER: LADEN · ENTF: LÖSCHEN · ESC: ZURÜCK');
     this.root.classList.remove('hidden');
     this.refresh();
   }
@@ -132,13 +134,13 @@ export class SaveMenu {
       const s = this.slots[i];
       const num = `<span class="num">${String(i + 1).padStart(2, '0')}</span>`;
       if (!s) {
-        row.innerHTML = `${num}<span class="label empty">— LEER —</span>`;
+        row.innerHTML = `${num}<span class="label empty">— ${t('LEER')} —</span>`;
       } else {
         const d = DIFFICULTIES[difficultyIndex(s.difficulty) ?? 1];
-        const stage = s.loop > 0 ? ` · STUFE ${s.loop + 1}` : '';
-        const warn = this.confirm === i ? '<span class="confirm">ENTER: ÜBERSCHREIBEN?</span>' : '';
+        const stage = s.loop > 0 ? ` · ${t(`STUFE ${s.loop + 1}`)}` : '';
+        const warn = this.confirm === i ? `<span class="confirm">${t('ENTER: ÜBERSCHREIBEN?')}</span>` : '';
         row.innerHTML =
-          `${num}<span class="label">${s.label}<small><b style="color:${d.color}">${d.name}${stage}</b>` +
+          `${num}<span class="label">${WaveDirector.labelOf(s)}<small><b style="color:${d.color}">${t(d.name)}${stage}</b>` +
           ` &middot; SCORE ${String(s.score).padStart(7, '0')} &middot; GOLD ${s.gold}</small></span>` +
           `<span class="time">${formatTime(s.savedAt)}</span>${warn}`;
       }

@@ -69,6 +69,11 @@ Im Dev-Server ist das laufende Spiel als `window.__game` erreichbar (für automa
 
 Zehn Sektoren mit eigenen Gegnern, Nebelfarben, Musik und Endgegner. Danach beginnt eine neue, härtere Stufe.
 
+**Sprache:** Deutsch oder Englisch, umschaltbar im Titel (letzter Eintrag oder Taste L); beim ersten Start nach
+Browsersprache. Deutsch steht im Code, `t()` aus `src/i18n` holt die englische Fassung aus `src/i18n/en.ts`
+(Schlüssel = deutscher Text, Ziffern als `#`). Feste Texte in `index.html` tragen `data-i18n`. Die Story ist je Sprache
+eigens formuliert (`src/ui/storyText.ts`). Ein Test (`src/i18n/i18n.test.ts`) meldet fehlende Übersetzungen.
+
 **Highscores:** je Schwierigkeitsgrad im Browser gespeichert (`src/game/Highscores.ts`), angezeigt im Titel und bei
 Game Over. Ein Durchlauf zählt für die Stufe, auf der er begonnen hat, auch wenn er nach dem Durchspielen weiterläuft.
 
