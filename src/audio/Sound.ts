@@ -387,34 +387,65 @@ export class Sound {
 
   /** Dauerlaser an/aus: brummender Dauerton, solange er feuert. */
   /**
-   * Laser: beim Einschalten ein kurzer Zapp, danach nur leises Knistern aus gefiltertem Rauschen, dessen Klangfarbe
-   * langsam wandert. Bewusst ohne Tonhöhe: ein gehaltener Ton klingt auf Dauer wie eine Hupe.
+   * Laser: beim Einschalten ein kurzer Zapp, danach ein schimmernder Strahl. Ein hoher, leiser Ton mit schnellem
+   * Vibrato (das typische Flirren eines Energiestrahls) und ein Hauch Rauschen durch einen wandernden Resonanzfilter.
+   * Kein gehaltener Akkord im Mittenbereich, der klingt auf Dauer wie eine Hupe.
    */
   setLaser(on: boolean): void {
     const ctx = this.ctx;
     if (!ctx) return;
     if (on && !this.laserNodes) {
-      this.tone({ type: 'sine', freq: 1800, to: 500, dur: 0.12, vol: 0.04 });
+      const t = ctx.currentTime;
+      this.tone({ type: 'sine', freq: 1800, to: 700, dur: 0.12, vol: 0.04 });
       const gain = ctx.createGain();
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.04, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(1, t + 0.12);
+      gain.connect(this.sfx);
+      const lfo = (freq: number, amount: number, target: AudioParam) => {
+        const o = ctx.createOscillator();
+        const depth = ctx.createGain();
+        o.frequency.value = freq;
+        depth.gain.value = amount;
+        o.connect(depth).connect(target);
+        o.start(t);
+        return o;
+      };
+
+      // Strahl: Sinus mit schnellem Vibrato, darüber langsames Auf und Ab der Tonhöhe
+      const beam = ctx.createOscillator();
+      beam.type = 'sine';
+      beam.frequency.value = 760;
+      const beamGain = ctx.createGain();
+      beamGain.gain.value = 0.016;
+      beam.connect(beamGain).connect(gain);
+      const vibrato = lfo(23, 45, beam.detune);
+      const wander = lfo(0.6, 60, beam.detune);
+      // Leise Oktave darüber, gegenläufig flirrend
+      const shimmer = ctx.createOscillator();
+      shimmer.type = 'triangle';
+      shimmer.frequency.value = 1523;
+      const shimmerGain = ctx.createGain();
+      shimmerGain.gain.value = 0.005;
+      shimmer.connect(shimmerGain).connect(gain);
+      const shimmerVibrato = lfo(31, 35, shimmer.detune);
+
+      // Knistern: Rauschen durch einen schmalen Filter, der langsam wandert (klingt wie ein Fauchen des Strahls)
       const noise = ctx.createBufferSource();
       noise.buffer = this.noiseBuffer;
       noise.loop = true;
       const filter = ctx.createBiquadFilter();
       filter.type = 'bandpass';
-      filter.frequency.value = 3200;
-      filter.Q.value = 0.9;
-      noise.connect(filter).connect(gain).connect(this.sfx);
-      // Klangfarbe wandert langsam zwischen etwa 2400 und 4000 Hz
-      const lfo = ctx.createOscillator();
-      const depth = ctx.createGain();
-      lfo.frequency.value = 0.7;
-      depth.gain.value = 800;
-      lfo.connect(depth).connect(filter.frequency);
-      noise.start();
-      lfo.start();
-      this.laserNodes = { sources: [noise, lfo], gain };
+      filter.frequency.value = 2600;
+      filter.Q.value = 3;
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.value = 0.05;
+      noise.connect(filter).connect(noiseGain).connect(gain);
+      const sweep = lfo(1.3, 900, filter.frequency);
+
+      beam.start(t);
+      shimmer.start(t);
+      noise.start(t);
+      this.laserNodes = { sources: [beam, shimmer, noise, vibrato, wander, shimmerVibrato, sweep], gain };
     } else if (!on && this.laserNodes) {
       const { sources, gain } = this.laserNodes;
       gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.03);

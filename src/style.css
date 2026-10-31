@@ -307,6 +307,22 @@ body {
   text-align: right;
 }
 
+#title .difficulty .info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+#title .difficulty .best {
+  font-size: 7px;
+  color: #ffd84a;
+}
+
+#title .difficulty .best:empty {
+  display: none;
+}
+
 #title .difficulty.selected {
   border-color: var(--accent);
   background: rgba(26, 36, 88, 0.95);
@@ -822,6 +838,16 @@ body {
 #gameover .go-title {
   font-size: 44px;
   color: #ff4a5a;
+}
+
+#go-best {
+  font-size: 10px;
+  color: #9ab8e0;
+}
+
+#go-best.new {
+  color: #ffd84a;
+  animation: blink 0.6s steps(1) infinite;
 }
 
 #gameover .go-hint {

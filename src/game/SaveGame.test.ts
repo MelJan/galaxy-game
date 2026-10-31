@@ -90,6 +90,8 @@ describe('Migration', () => {
     // Stände vor dem Koop-Update laden als Einzelspieler
     expect(save.players).toBe(1);
     expect(save.hull2).toBe(5);
+    // Stände vor den Highscores: der Durchlauf zählt für die gespeicherte Stufe
+    expect(save.startDifficulty).toBe('easy');
   });
 });
 
@@ -111,6 +113,7 @@ describe('Speicherplätze', () => {
       upgrades: { hull: 2, drones: 1 },
       players: 2,
       hull2: 4,
+      startDifficulty: 'normal',
     };
     expect(writeSlot(3, save)).toBe(true);
     const slots = loadSlots();

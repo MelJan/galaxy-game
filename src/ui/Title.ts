@@ -1,5 +1,6 @@
 import type { Input } from '../core/Input';
 import { DIFFICULTIES } from '../game/Difficulty';
+import { loadHighscores } from '../game/Highscores';
 import { hasSaves } from '../game/SaveGame';
 
 export interface TitleHandlers {
@@ -26,7 +27,7 @@ export class Title {
       const row = document.createElement('button');
       row.className = 'difficulty';
       row.style.setProperty('--accent', d.color);
-      row.innerHTML = `<span class="name">${d.name}</span><span class="desc">${d.description}</span>`;
+      row.innerHTML = `<span class="name">${d.name}</span><span class="info"><span class="desc">${d.description}</span><span class="best"></span></span>`;
       row.addEventListener('mouseenter', () => this.select(i));
       row.addEventListener('click', () => {
         this.select(i);
@@ -74,6 +75,12 @@ export class Title {
 
   show(selected: number): void {
     this.isOpen = true;
+    // Rekorde je Stufe (können sich seit dem letzten Mal geändert haben)
+    const scores = loadHighscores();
+    DIFFICULTIES.forEach((d, i) => {
+      const best = scores[d.id];
+      this.rows[i].querySelector('.best')!.textContent = best ? `REKORD ${String(best).padStart(7, '0')}` : '';
+    });
     this.selected = Math.min(selected, DIFFICULTIES.length - 1);
     this.root.classList.remove('hidden');
     this.refresh();

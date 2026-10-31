@@ -90,8 +90,12 @@ export class Hud {
     this.flashEl.classList.add('active');
   }
 
-  showGameOver(score: number): void {
+  /** best: Rekord der Stufe, auf der der Durchlauf begann (difficulty: ihr Name). */
+  showGameOver(score: number, best: number, isNew: boolean, difficulty: string): void {
     this.finalScore.textContent = String(score).padStart(7, '0');
+    const el = document.getElementById('go-best')!;
+    el.textContent = isNew ? `NEUER REKORD AUF ${difficulty}!` : `REKORD ${difficulty} ${String(best).padStart(7, '0')}`;
+    el.classList.toggle('new', isNew);
     this.gameOver.classList.remove('hidden');
   }
 

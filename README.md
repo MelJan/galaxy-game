@@ -64,6 +64,9 @@ Im Dev-Server ist das laufende Spiel als `window.__game` erreichbar (für automa
 
 Zehn Sektoren mit eigenen Gegnern, Nebelfarben, Musik und Endgegner. Danach beginnt eine neue, härtere Stufe.
 
+**Highscores:** je Schwierigkeitsgrad im Browser gespeichert (`src/game/Highscores.ts`), angezeigt im Titel und bei
+Game Over. Ein Durchlauf zählt für die Stufe, auf der er begonnen hat, auch wenn er nach dem Durchspielen weiterläuft.
+
 **Vorspann und Abspann:** Nach der Wahl der Schwierigkeit erzählt der Vorspann die Geschichte, während das Schiff auf
 der Erde steht, dann folgen Countdown und Start. Nach dem Weltenbrecher kommen Epilog, Landung auf der Erde, rollende
 Credits und ein neuer Start. Enter/Antippen blättert weiter, Esc/„Überspringen“ überspringt. Texte und Mitwirkende

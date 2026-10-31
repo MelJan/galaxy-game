@@ -49,6 +49,7 @@ import { Story, type Scene } from '../ui/Story';
 import { introSteps, outroSteps, SCENE_TIME } from '../ui/storyText';
 import { writeSlot, type SaveData } from './SaveGame';
 import { DIFFICULTIES, difficultyIndex, loadDifficulty, saveDifficulty } from './Difficulty';
+import { highscore, submitHighscore } from './Highscores';
 import { Upgrades, UPGRADES, type UpgradeDef, type UpgradeId } from './Upgrades';
 import { SECTORS, WaveDirector, type BossId } from './Waves';
 import { LASER_DPS, LASER_TIME, LASER_WIDTH, MISSILE_DAMAGE, MISSILE_TIME, OPTION_TIME, Weapons } from './Weapons';
@@ -138,6 +139,8 @@ export class Session {
   private pendingCampaign: string | null = null;
   /** Index in DIFFICULTIES. */
   private difficulty = loadDifficulty();
+  /** Stufe, auf der der Durchlauf begonnen hat: für sie zählt der Highscore. */
+  private startDifficulty = this.difficulty;
   /** Countdown bis die Werft öffnet (null = keine geplant). */
   private shopTimer: number | null = null;
   /** Nur Entwicklung (?bot): Autopilot und Messwerte für das Balancing. */
@@ -248,7 +251,7 @@ export class Session {
     if (DEV.skipTitle) {
       // Zum Testen direkt losfliegen: ?diff=0..4 wählt die Stufe, ?shop öffnet die Werft, ?gold=500 gibt Startgold,
       // ?players=2 startet im Zweispieler-Modus
-      if (DEV.difficulty !== null) this.difficulty = DEV.difficulty;
+      if (DEV.difficulty !== null) this.difficulty = this.startDifficulty = DEV.difficulty;
       this.setPlayers(DEV.players);
       for (const pl of this.pilots) if (pl.active) pl.ship.reset();
       this.applyDifficulty();
@@ -397,6 +400,7 @@ export class Session {
       upgrades: this.upgrades.toJSON(),
       players: this.players,
       hull2: this.pilots[1].hull,
+      startDifficulty: DIFFICULTIES[this.startDifficulty].id,
     };
     if (writeSlot(slot, data)) this.sound.shopBuy();
     else this.sound.shopDeny();
@@ -408,6 +412,7 @@ export class Session {
     this.setPlayers(data.players);
     this.restart();
     this.difficulty = difficultyIndex(data.difficulty) ?? 1;
+    this.startDifficulty = difficultyIndex(data.startDifficulty) ?? this.difficulty;
     this.applyDifficulty();
     this.upgrades.load(data.upgrades);
     this.score = data.score;
@@ -425,6 +430,8 @@ export class Session {
    * Auf der höchsten Stufe steigt stattdessen die Runde (Gegner werden weiter härter).
    */
   private onCampaignComplete(): boolean {
+    // Zwischenstand sichern, falls der Durchlauf danach nicht mit Game Over endet (Fenster zu)
+    submitHighscore(DIFFICULTIES[this.startDifficulty].id, this.score);
     for (const pl of this.pilots) pl.hull = this.maxHull;
     if (this.difficulty < DIFFICULTIES.length - 1) {
       this.difficulty++;
@@ -480,6 +487,7 @@ export class Session {
     this.pendingCampaign = null;
     this.shopTimer = null;
     this.outroTimer = null;
+    this.startDifficulty = this.difficulty;
     this.story.stop();
     this.hooks.home(null);
     this.score = 0;
@@ -553,7 +561,9 @@ export class Session {
       this.stateTimer -= dt;
       if (this.stateTimer <= 0) {
         this.state = 'gameover';
-        this.hud.showGameOver(this.score);
+        const run = DIFFICULTIES[this.startDifficulty];
+        const isNew = submitHighscore(run.id, this.score);
+        this.hud.showGameOver(this.score, highscore(run.id), isNew, run.name);
         this.sound.gameOver();
       }
     }

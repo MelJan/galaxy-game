@@ -34,6 +34,8 @@ export interface SaveData {
   players: number;
   /** Hülle von Spieler 2. */
   hull2: number;
+  /** ID der Stufe, auf der der Durchlauf begonnen hat (für den Highscore; fehlt in älteren Ständen → difficulty). */
+  startDifficulty: string;
 }
 
 export const SAVE_VERSION = 2;
@@ -82,11 +84,12 @@ export function migrate(raw: unknown): SaveData | null {
   if (data.version !== 2) return null;
   const v2 = data as Partial<SaveData>;
   if (!v2.position || typeof v2.position !== 'object' || typeof v2.position.sector !== 'string') return null;
+  const difficulty = difficultyIndex(v2.difficulty) !== null ? DIFFICULTIES[difficultyIndex(v2.difficulty)!].id : 'easy';
   return {
     version: 2,
     savedAt: typeof v2.savedAt === 'string' ? v2.savedAt : new Date(0).toISOString(),
     label: typeof v2.label === 'string' ? v2.label : WaveDirector.label({ entry: WaveDirector.entryOf(v2.position), waveNumber: 0, loop: 0 }),
-    difficulty: difficultyIndex(v2.difficulty) !== null ? DIFFICULTIES[difficultyIndex(v2.difficulty)!].id : 'easy',
+    difficulty,
     loop: Math.max(0, Math.floor(num(v2.loop, 0))),
     position: v2.position,
     waveNumber: Math.max(0, Math.floor(num(v2.waveNumber, 0))),
@@ -96,6 +99,7 @@ export function migrate(raw: unknown): SaveData | null {
     upgrades: v2.upgrades && typeof v2.upgrades === 'object' ? v2.upgrades : {},
     players: v2.players === 2 ? 2 : 1,
     hull2: Math.max(1, Math.floor(num(v2.hull2, num(v2.hull, 5)))),
+    startDifficulty: difficultyIndex(v2.startDifficulty) !== null ? DIFFICULTIES[difficultyIndex(v2.startDifficulty)!].id : difficulty,
   };
 }
 
