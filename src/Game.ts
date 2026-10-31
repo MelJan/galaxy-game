@@ -11,6 +11,7 @@ import { isTouchDevice } from './core/Touch';
 import { FIRE_RAMP } from './fx/explode';
 import { Particles } from './fx/Particles';
 import { Session } from './game/Session';
+import { AutoQuality } from './gfx/AutoQuality';
 import { GFX, gfxUniforms, loadGfxMode, setGfxMode } from './gfx/mode';
 import { refreshPixelTextures } from './gfx/pixel';
 import { Hud } from './ui/Hud';
@@ -29,6 +30,13 @@ export class Game {
   private readonly timer = new THREE.Timer();
   private readonly input = new Input();
   private readonly touchPause = document.getElementById('touch-pause')!;
+  /** Passt im Smooth-Modus die Auflösung an die Leistung des Geräts an. */
+  private readonly quality = new AutoQuality(
+    () => this.applySize(),
+    () => this.showFps(),
+  );
+  /** ?fps in der Adresse: Bildrate und Auflösungsstufe einblenden (auch im fertigen Spiel). */
+  private readonly fpsEl = new URLSearchParams(location.search).has('fps') ? this.createFpsDisplay() : null;
 
   /** Alle Hintergrund-Ebenen. Wird gegen die Spielerbewegung verschoben, das ergibt die Parallaxe. */
   private readonly background = new THREE.Group();
@@ -65,6 +73,7 @@ export class Game {
     container.appendChild(this.renderer.domElement);
     loadGfxMode();
     this.setupTouch();
+    this.updateGfxButton();
 
     this.scene.background = new THREE.Color(0x02030a);
     this.camera = new THREE.PerspectiveCamera(CAMERA.fov, 1, 0.5, 2000);
@@ -104,7 +113,8 @@ export class Game {
     this.hud.setAudio(this.sound.isSoundOn, this.sound.isMusicOn);
 
     this.retroComposer = this.createComposer(0);
-    this.smoothComposer = this.createComposer(4);
+    // Kantenglättung kostet auf hochauflösenden Handy-Displays viel und bringt dort kaum etwas
+    this.smoothComposer = this.createComposer(isTouchDevice() ? 0 : 4);
     this.applySize();
 
     window.addEventListener('resize', () => this.onResize());
@@ -132,6 +142,7 @@ export class Game {
       'go-restart': 'Enter',
       'go-menu': 'Escape',
       'saves-back': 'Escape',
+      'pause-gfx': 'KeyG',
     };
     for (const [id, code] of Object.entries(keys)) {
       document.getElementById(id)?.addEventListener('click', (e) => {
@@ -178,6 +189,7 @@ export class Game {
 
   private frame(timestamp: number): void {
     this.timer.update(timestamp);
+    this.quality.frame(timestamp, GFX.smooth && document.visibilityState === 'visible');
     // Im ersten Frame kann das Delta negativ sein (rAF-Zeitstempel liegt vor dem Timer-Start)
     const dt = THREE.MathUtils.clamp(this.timer.getDelta(), 0, 1 / 20);
     // Esc schließt in der Werft das Menü statt zu pausieren
@@ -230,6 +242,9 @@ export class Game {
 
   private toggleGfxMode(): void {
     setGfxMode(!GFX.smooth);
+    this.quality.reset();
+    this.updateGfxButton();
+    this.showFps();
     refreshPixelTextures();
     this.planets.applyGfxMode();
     this.applySize();
@@ -277,7 +292,7 @@ export class Game {
     const canvas = this.renderer.domElement;
     let scale = 1;
     if (GFX.smooth) {
-      const ratio = Math.min(window.devicePixelRatio, 2);
+      const ratio = Math.min(window.devicePixelRatio, 2) * this.quality.scale;
       this.renderer.setPixelRatio(ratio);
       this.renderer.setSize(window.innerWidth, window.innerHeight, false);
       this.composer.setPixelRatio(ratio);
@@ -294,6 +309,27 @@ export class Game {
     this.engineFx.setPixelScale(scale);
     this.sparkFx.setPixelScale(scale);
     this.fireFx.setPixelScale(scale);
+  }
+
+  private createFpsDisplay(): HTMLElement {
+    const el = document.createElement('div');
+    el.style.cssText =
+      'position:fixed;right:6px;bottom:6px;z-index:99;padding:4px 6px;background:rgba(0,0,0,.7);color:#7f7;font:11px monospace;pointer-events:none';
+    el.textContent = 'fps …';
+    document.body.append(el);
+    return el;
+  }
+
+  private showFps(): void {
+    if (!this.fpsEl) return;
+    const mode = GFX.smooth ? `smooth ${Math.round(this.quality.scale * 100)} %` : 'retro';
+    this.fpsEl.textContent = `${Math.round(this.quality.fps)} fps · ${mode}`;
+  }
+
+  /** Beschriftung des Grafik-Knopfs im Pausenmenü (Touch). */
+  private updateGfxButton(): void {
+    const btn = document.getElementById('pause-gfx');
+    if (btn) btn.textContent = `GRAFIK: ${GFX.smooth ? 'SMOOTH' : 'RETRO'}`;
   }
 
   private onResize(): void {
