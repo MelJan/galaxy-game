@@ -387,9 +387,9 @@ export class Sound {
 
   /** Dauerlaser an/aus: brummender Dauerton, solange er feuert. */
   /**
-   * Laser: beim Einschalten ein kurzer Zapp, danach ein schimmernder Strahl. Ein hoher, leiser Ton mit schnellem
-   * Vibrato (das typische Flirren eines Energiestrahls) und ein Hauch Rauschen durch einen wandernden Resonanzfilter.
-   * Kein gehaltener Akkord im Mittenbereich, der klingt auf Dauer wie eine Hupe.
+   * Laser: beim Einschalten ein kurzer Zapp, danach ein schimmernder Strahl: ein hoher, leiser Ton mit schnellem
+   * Vibrato (das typische Flirren eines Energiestrahls). Kein gehaltener Akkord im Mittenbereich, der klingt auf
+   * Dauer wie eine Hupe, und kein Rauschen.
    */
   setLaser(on: boolean): void {
     const ctx = this.ctx;
@@ -429,23 +429,9 @@ export class Sound {
       shimmer.connect(shimmerGain).connect(gain);
       const shimmerVibrato = lfo(31, 35, shimmer.detune);
 
-      // Knistern: Rauschen durch einen schmalen Filter, der langsam wandert (klingt wie ein Fauchen des Strahls)
-      const noise = ctx.createBufferSource();
-      noise.buffer = this.noiseBuffer;
-      noise.loop = true;
-      const filter = ctx.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.value = 2600;
-      filter.Q.value = 3;
-      const noiseGain = ctx.createGain();
-      noiseGain.gain.value = 0.05;
-      noise.connect(filter).connect(noiseGain).connect(gain);
-      const sweep = lfo(1.3, 900, filter.frequency);
-
       beam.start(t);
       shimmer.start(t);
-      noise.start(t);
-      this.laserNodes = { sources: [beam, shimmer, noise, vibrato, wander, shimmerVibrato, sweep], gain };
+      this.laserNodes = { sources: [beam, shimmer, vibrato, wander, shimmerVibrato], gain };
     } else if (!on && this.laserNodes) {
       const { sources, gain } = this.laserNodes;
       gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.03);
