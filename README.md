@@ -7,7 +7,15 @@ npm install
 npm run dev        # http://localhost:5180  (Sprite-Vorschau: /sprites.html)
 npm run build      # Lizenzhinweise sammeln, Typecheck, Produktions-Build nach dist/
 npm test           # automatische Tests (Spielstände, Migrationen)
+npm run itch       # Build und ZIP für den Upload auf itch.io: release/galaxy-game-itch.zip
 ```
+
+**Veröffentlichen** (der Build nutzt relative Pfade und läuft in jedem Unterordner; Test-Schalter sind dort aus):
+- **itch.io:** `npm run itch`, dann im Dashboard „Create new project“ → Kind of project: *HTML* → ZIP hochladen →
+  „This file will be played in the browser“ anhaken → Viewport z. B. 1280 × 720, „Fullscreen button“ einschalten.
+- **GitHub Pages:** Repo auf GitHub anlegen und pushen, dann unter Settings → Pages → Source „GitHub Actions“ wählen.
+  Danach veröffentlicht `.github/workflows/pages.yml` bei jedem Push auf `master` (Tests, Build, Upload) unter
+  `https://<name>.github.io/<repo>/`.
 
 **Schwierigkeitsgrade** (Auswahl auf dem Titelbildschirm, wird gespeichert; Werte in `src/game/Difficulty.ts`):
 
