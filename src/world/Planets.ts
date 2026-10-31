@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { PIXEL, SCROLL_SPEED } from '../config';
 import { randRange } from '../core/view';
 import { GLSL_BAYER, GLSL_NOISE3 } from '../gfx/glsl';
-import { GFX } from '../gfx/mode';
+import { GFX, gfxUniforms } from '../gfx/mode';
 import { createPixelMaterial } from '../gfx/pixel';
 
 type Kind = 'terran' | 'gas' | 'lava' | 'rock';
@@ -117,6 +117,12 @@ const SCREEN_GAP = 0.06;
 /** Die Erde im Vorspann: Radius und Tiefe (knapp hinter der Spielebene). */
 const HOME_RADIUS = 24;
 const HOME_Z = -1;
+/**
+ * Smooth-Modus: Planetenoberflächen in so viel feinerer Auflösung als ein Spielpixel berechnen (Ränder werden weich).
+ * Obergrenze der Texturgröße, damit die Erde im Vorspann auf Handys nicht zu viel Rechenzeit kostet.
+ */
+const SMOOTH_DETAIL = 3;
+const MAX_TEXTURE = 768;
 
 const vertexShader = /* glsl */ `
   varying vec2 vUv;
@@ -140,6 +146,8 @@ const fragmentShader = /* glsl */ `
   uniform vec3 uPal[16];
   uniform vec3 uRingPal[3];
   uniform vec3 uAtmo;
+  /** 1 = Smooth-Modus: Oberfläche in feiner Auflösung, Rand und Atmosphäre weich statt gerastert. */
+  uniform float uSmooth;
   varying vec2 vUv;
 
   ${GLSL_BAYER}
@@ -162,6 +170,11 @@ const fragmentShader = /* glsl */ `
     float dither = bayer4(gl_FragCoord.xy);
     vec3 col = vec3(0.0);
     bool filled = false;
+    bool smoothMode = uSmooth > 0.5;
+    // Atmosphärensaum direkt am Rand (Deckkraft), für den weichen Übergang im Smooth-Modus
+    float rimLight = dot(normalize(vec3(uv, 0.0) + 1e-5), uLight) * 0.5 + 0.5;
+    float edgeAtmo = uHasAtmo > 0.5 ? clamp(rimLight * 1.4, 0.0, 1.0) : 0.0;
+    vec4 outColor = vec4(0.0);
 
     if (d < 1.0) {
       vec3 n = vec3(uv, sqrt(1.0 - d * d));
@@ -202,12 +215,23 @@ const fragmentShader = /* glsl */ `
       // Heller Atmosphärensaum am beleuchteten Rand
       if (uHasAtmo > 0.5 && d > 0.92 && lvl >= 2) col = mix(col, uAtmo, 0.5);
       filled = true;
+      outColor = vec4(col, 1.0);
+      if (smoothMode) {
+        // Kantenglättung: in der äußersten Pixelbreite in den Atmosphärensaum (oder ins Leere) überblenden
+        float edge = smoothstep(1.0, 1.0 - fwidth(d) * 1.5, d);
+        outColor = mix(vec4(uAtmo * edgeAtmo, edgeAtmo), outColor, edge);
+      }
     } else if (uHasAtmo > 0.5 && d < 1.09) {
       float a = 1.0 - (d - 1.0) / 0.09;
-      float rimLight = dot(normalize(vec3(uv, 0.0)), uLight) * 0.5 + 0.5;
-      if (a * rimLight * 1.4 > dither) {
+      if (smoothMode) {
+        // Weicher Verlauf statt Rastermuster
+        float alpha = edgeAtmo * a * a;
+        outColor = vec4(uAtmo * alpha, alpha);
+        filled = alpha > 0.004;
+      } else if (a * rimLight * 1.4 > dither) {
         col = uAtmo;
         filled = true;
+        outColor = vec4(col, 1.0);
       }
     }
 
@@ -222,12 +246,14 @@ const fragmentShader = /* glsl */ `
           int ri = int(clamp(floor(s * 3.0 + (dither - 0.5) * 0.8), 0.0, 2.0));
           col = uRingPal[ri];
           filled = true;
+          outColor = vec4(col, 1.0);
         }
       }
     }
 
     if (!filled) discard;
-    gl_FragColor = vec4(col, 1.0);
+    // Vormultipliziert (wie alle Pixel-Texturen); im Retro-Modus immer deckend
+    gl_FragColor = outColor;
   }
 `;
 
@@ -270,6 +296,8 @@ export class Planets {
   private readonly surfaceCamera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0, 1);
   private readonly surfaceQuad = new THREE.Mesh(new THREE.PlaneGeometry(1, 1));
   private readonly clearColor = new THREE.Color();
+  /** Hintergrundplaneten abwechselnd neu berechnen (sie drehen sich langsam, jedes zweite Bild reicht). */
+  private surfaceFrame = 0;
 
   constructor(private readonly camera: THREE.PerspectiveCamera) {
     this.surfaceQuad.position.z = -0.5;
@@ -300,6 +328,7 @@ export class Planets {
         uPal: { value: Array.from({ length: 16 }, () => new THREE.Color()) },
         uRingPal: { value: Array.from({ length: 3 }, () => new THREE.Color()) },
         uAtmo: { value: new THREE.Color() },
+        uSmooth: gfxUniforms.uSmooth,
       },
     });
     const target = new THREE.WebGLRenderTarget(16, 16, {
@@ -331,10 +360,10 @@ export class Planets {
     planet.mesh.position.z = z;
     planet.mesh.scale.setScalar(planet.radius * planet.extent * 2);
 
-    // Texturgröße = Kantenlänge des Quads in Spiel-Pixeln dieser Tiefe
+    // Texturgröße = Kantenlänge des Quads in Spiel-Pixeln dieser Tiefe, im Smooth-Modus feiner (die Textur nutzt nur er)
     const camZ = this.camera.position.z;
     const pixelAtDepth = (PIXEL * (camZ - z)) / camZ;
-    const size = THREE.MathUtils.clamp(Math.round((planet.radius * planet.extent * 2) / pixelAtDepth), 8, 512);
+    const size = THREE.MathUtils.clamp(Math.round(((planet.radius * planet.extent * 2) / pixelAtDepth) * SMOOTH_DETAIL), 8, MAX_TEXTURE);
     planet.target.setSize(size, size);
     (planet.display.uniforms.uTexSize.value as THREE.Vector2).set(size, size);
 
@@ -366,7 +395,7 @@ export class Planets {
     home.mesh.position.z = HOME_Z;
     home.mesh.scale.setScalar(HOME_RADIUS * PLAIN_EXTENT * 2);
     const camZ = this.camera.position.z;
-    const size = Math.min(512, Math.round((HOME_RADIUS * PLAIN_EXTENT * 2) / ((PIXEL * (camZ - HOME_Z)) / camZ)));
+    const size = Math.min(MAX_TEXTURE, Math.round(((HOME_RADIUS * PLAIN_EXTENT * 2) / ((PIXEL * (camZ - HOME_Z)) / camZ)) * SMOOTH_DETAIL));
     home.target.setSize(size, size);
     (home.display.uniforms.uTexSize.value as THREE.Vector2).set(size, size);
     const u = home.material.uniforms;
@@ -476,8 +505,9 @@ export class Planets {
     renderer.getClearColor(this.clearColor);
     const prevAlpha = renderer.getClearAlpha();
     renderer.setClearColor(0x000000, 0);
-    for (const planet of [...this.planets, this.home]) {
-      if (!planet.active) continue;
+    this.surfaceFrame ^= 1;
+    for (const [i, planet] of [...this.planets, this.home].entries()) {
+      if (!planet.active || (planet !== this.home && i % 2 !== this.surfaceFrame)) continue;
       this.surfaceQuad.material = planet.material;
       renderer.setRenderTarget(planet.target);
       renderer.render(this.surfaceScene, this.surfaceCamera);
