@@ -386,21 +386,28 @@ export class Sound {
   }
 
   /** Dauerlaser an/aus: brummender Dauerton, solange er feuert. */
+  /**
+   * Dauerton des Lasers: weiches, leises Summen (Dreieck und Sinus, leicht verstimmt, stark gedämpft) mit sanftem
+   * Pulsieren der Lautstärke. Er läuft lange mit, deshalb nichts Schrilles und keine schnelle Tonhöhen-Wackelei.
+   */
   setLaser(on: boolean): void {
     const ctx = this.ctx;
     if (!ctx) return;
     if (on && !this.laserNodes) {
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.045, ctx.currentTime + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.018, ctx.currentTime + 0.12);
       const filter = ctx.createBiquadFilter();
       filter.type = 'lowpass';
-      filter.frequency.value = 2200;
-      filter.connect(gain).connect(this.sfx);
+      filter.frequency.value = 1100;
+      // Sanftes Pulsieren: die Lautstärke schwankt um etwa ein Viertel
+      const pulse = ctx.createGain();
+      filter.connect(pulse).connect(gain).connect(this.sfx);
       const oscs = (
         [
-          ['sawtooth', 138],
-          ['square', 277.5],
+          ['triangle', 220],
+          ['sine', 441.5],
+          ['sine', 329.6],
         ] as const
       ).map(([type, freq]) => {
         const o = ctx.createOscillator();
@@ -412,9 +419,9 @@ export class Sound {
       });
       const lfo = ctx.createOscillator();
       const depth = ctx.createGain();
-      lfo.frequency.value = 9;
-      depth.gain.value = 6;
-      lfo.connect(depth).connect(oscs[0].frequency);
+      lfo.frequency.value = 5;
+      depth.gain.value = 0.25;
+      lfo.connect(depth).connect(pulse.gain);
       lfo.start();
       this.laserNodes = { oscs: [...oscs, lfo], gain };
     } else if (!on && this.laserNodes) {
