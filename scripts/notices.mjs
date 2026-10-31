@@ -1,6 +1,6 @@
-// Sammelt die Lizenztexte aller Bibliotheken, die im fertigen Spiel enthalten sind, in eine Datei.
-// Läuft vor jedem Build (npm run build) und landet als dist/licenses/THIRD_PARTY_NOTICES.txt im Spiel.
-import { readFileSync, writeFileSync } from 'node:fs';
+// Sammelt die Lizenztexte aller Bibliotheken, die im fertigen Spiel enthalten sind, in eine Datei, und legt die
+// Lizenz des Spiels selbst daneben. Läuft vor jedem Build (npm run build); beides landet in dist/licenses/.
+import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 
 const PACKAGES = [
   { name: 'three.js', pkg: 'three', note: '3D-Grafik' },
@@ -16,3 +16,5 @@ for (const p of PACKAGES) {
 }
 writeFileSync('public/licenses/THIRD_PARTY_NOTICES.txt', out);
 console.log('Lizenzhinweise geschrieben: public/licenses/THIRD_PARTY_NOTICES.txt');
+// Die Lizenz verlangt, dass jede Kopie des Spiels ihren Text und den Copyright-Hinweis enthält
+copyFileSync('LICENSE.md', 'public/licenses/LICENSE.txt');

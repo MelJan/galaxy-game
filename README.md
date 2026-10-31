@@ -34,9 +34,14 @@ Spielstände speichern nur stabile IDs (Sektor, Welle im Sektor, Boss, Schwierig
 Formatversion mit Migration (`src/game/SaveGame.ts`, Regeln im Kopfkommentar, Tests in `SaveGame.test.ts`).
 Aller Speicherzugriff läuft über `src/core/storage.ts` (heute `localStorage`, später austauschbar).
 
-**Lizenzen:** Grafik, Sound und Musik sind im Code erzeugt. Fremde Bestandteile: three.js (MIT) und die Schrift
+**Lizenz des Spiels:** © 2026 Jan Melchior. Freigegeben unter der
+[PolyForm Noncommercial License 1.0.0](LICENSE.md): Spielen, kopieren, weitergeben und verändern ist erlaubt, solange es
+nicht kommerziell ist. Wer eine Kopie oder veränderte Fassung weitergibt, muss den Lizenztext und den Copyright-Hinweis
+(„Required Notice“ in `LICENSE.md`) mitgeben. Geld damit verdienen ist nicht erlaubt.
+
+**Fremde Lizenzen:** Grafik, Sound und Musik sind im Code erzeugt. Fremde Bestandteile: three.js (MIT) und die Schrift
 Press Start 2P (SIL Open Font License 1.1, lokal über `@fontsource` eingebunden). `npm run build` schreibt die
-Lizenztexte nach `licenses/THIRD_PARTY_NOTICES.txt`; im Spiel stehen sie unter „CREDITS“.
+Lizenztexte nach `licenses/THIRD_PARTY_NOTICES.txt` und legt `LICENSE.md` als `licenses/LICENSE.txt` daneben; im Spiel stehen beide unter „CREDITS“.
 
 **Durchgespielt:** Nach dem letzten Endgegner beginnt Sektor 1 auf dem nächsten Schwierigkeitsgrad – Upgrades, Gold und
 Score bleiben. Auf Unmöglich steigen danach die Stufen (Gegner werden weiter zäher und schießen schneller).

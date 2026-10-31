@@ -110,6 +110,7 @@ function creditsHtml(players: number): string {
       'ENTWICKELT MIT VITE UND TYPESCRIPT',
     ]),
     block('GERETTET VON', [players === 2 ? 'SPIELER 1 UND SPIELER 2' : 'DIR']),
+    '<p>© 2026 JAN MELCHIOR<br /><span class="dim">KOPIEREN UND VERÄNDERN ERLAUBT, NICHT KOMMERZIELL</span></p>',
     '<p class="dim">BEI DER HERSTELLUNG DIESES SPIELS WURDE KEIN SCHLEIM VERLETZT.<br />NUR SEHR VIEL ANDERER.</p>',
   ].join('');
 }
