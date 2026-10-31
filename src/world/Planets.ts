@@ -114,6 +114,9 @@ const RING_EXTENT = 2.2;
 const PLAIN_EXTENT = 1.12;
 /** Mindestabstand zwischen zwei Planeten auf dem Bildschirm, in Bildhöhen-Hälften. */
 const SCREEN_GAP = 0.06;
+/** Die Erde im Vorspann: Radius und Tiefe (knapp hinter der Spielebene). */
+const HOME_RADIUS = 24;
+const HOME_Z = -1;
 
 const vertexShader = /* glsl */ `
   varying vec2 vUv;
@@ -255,7 +258,10 @@ interface ScreenTrack {
 /** Pixel-Planeten mit Shader-Oberfläche, die in verschiedenen Tiefen nach unten ziehen, ohne sich zu überlappen. */
 export class Planets {
   readonly group = new THREE.Group();
+  /** Die Erde im Vorspann und Abspann: liegt nicht im schwankenden Hintergrund, damit das Schiff fest auf ihr steht. */
+  readonly homeGroup = new THREE.Group();
   private readonly planets: Planet[] = [];
+  private readonly home: Planet;
   private readonly time = { value: 0 };
   private readonly light = { value: new THREE.Vector3(-0.65, 0.55, 0.55).normalize() };
   private retryTimer = 0;
@@ -273,6 +279,7 @@ export class Planets {
       this.planets.push(planet);
       this.respawn(planet, true);
     }
+    this.home = this.createHome();
   }
 
   private create(band: [number, number]): Planet {
@@ -347,6 +354,48 @@ export class Planets {
     if (def.atmosphere !== null) (u.uAtmo.value as THREE.Color).setHex(def.atmosphere);
   }
 
+  /** Große Erde knapp hinter der Spielebene, Nordhalbkugel nach oben. */
+  private createHome(): Planet {
+    const home = this.create([HOME_Z, HOME_Z]);
+    this.group.remove(home.mesh);
+    this.homeGroup.add(home.mesh);
+    const def = DEFS[0];
+    home.def = def;
+    home.radius = HOME_RADIUS;
+    home.extent = PLAIN_EXTENT;
+    home.mesh.position.z = HOME_Z;
+    home.mesh.scale.setScalar(HOME_RADIUS * PLAIN_EXTENT * 2);
+    const camZ = this.camera.position.z;
+    const size = Math.min(512, Math.round((HOME_RADIUS * PLAIN_EXTENT * 2) / ((PIXEL * (camZ - HOME_Z)) / camZ)));
+    home.target.setSize(size, size);
+    (home.display.uniforms.uTexSize.value as THREE.Vector2).set(size, size);
+    const u = home.material.uniforms;
+    u.uType.value = KIND_ID[def.kind];
+    u.uSeed.value = 7.3;
+    u.uSpin.value = 0.05;
+    u.uExtent.value = PLAIN_EXTENT;
+    u.uAxisTilt.value = 0.2;
+    u.uHasRing.value = 0;
+    u.uHasAtmo.value = 1;
+    def.ramps.forEach((hex, i) => (u.uPal.value[i] as THREE.Color).setHex(hex));
+    (u.uAtmo.value as THREE.Color).setHex(def.atmosphere!);
+    return home;
+  }
+
+  /**
+   * Erde zeigen, sodass ihre Oberkante auf der Spielebene bei y = top erscheint (null = ausblenden).
+   * Die Erde liegt etwas hinter der Spielebene; die Perspektive wird herausgerechnet.
+   */
+  setHome(top: number | null): void {
+    const home = this.home;
+    home.active = home.mesh.visible = top !== null;
+    // Keine zweite Erde im Hintergrund, solange die echte zu sehen ist
+    for (const p of this.planets) if (p.active && p.def === home.def) p.mesh.visible = top === null;
+    if (top === null) return;
+    const camZ = this.camera.position.z;
+    home.mesh.position.y = (top * (camZ - HOME_Z)) / camZ - HOME_RADIUS;
+  }
+
   /** Halbe sichtbare Höhe in Welt-Einheiten auf der Tiefe z. */
   private halfHeightAt(z: number): number {
     return (this.camera.position.z - z) * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
@@ -417,7 +466,7 @@ export class Planets {
 
   /** Nach einem Wechsel des Grafikmodus das passende Material setzen. */
   applyGfxMode(): void {
-    for (const planet of this.planets) planet.mesh.material = GFX.smooth ? planet.display : planet.material;
+    for (const planet of [...this.planets, this.home]) planet.mesh.material = GFX.smooth ? planet.display : planet.material;
   }
 
   /** Smooth-Modus: Oberflächen aller sichtbaren Planeten in ihre Texturen rendern. Vor dem Hauptbild aufrufen. */
@@ -427,7 +476,7 @@ export class Planets {
     renderer.getClearColor(this.clearColor);
     const prevAlpha = renderer.getClearAlpha();
     renderer.setClearColor(0x000000, 0);
-    for (const planet of this.planets) {
+    for (const planet of [...this.planets, this.home]) {
       if (!planet.active) continue;
       this.surfaceQuad.material = planet.material;
       renderer.setRenderTarget(planet.target);

@@ -20,6 +20,9 @@ import { Nebula } from './world/Nebula';
 import { Planets } from './world/Planets';
 import { Starfield } from './world/Starfield';
 
+/** Obergrenze der Render-Auflösung auf Handy und Tablet (Bildpunkte im Smooth-Modus, vor der automatischen Anpassung). */
+const TOUCH_PIXELS = 2_000_000;
+
 export class Game {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
@@ -91,7 +94,7 @@ export class Game {
     this.planets = new Planets(this.camera);
     this.asteroids = new Asteroids(this.camera);
     this.background.add(this.nebula.mesh, this.starfield.group, this.planets.group, this.asteroids.group);
-    this.scene.add(this.background);
+    this.scene.add(this.background, this.planets.homeGroup);
 
     this.engineFx = new Particles(500, 1, FIRE_RAMP);
     this.sparkFx = new Particles(1200, 1);
@@ -108,6 +111,7 @@ export class Game {
           this.theme = index;
           this.nebula.setTheme(index);
         },
+        home: (top) => this.planets.setHome(top),
       },
     );
     this.hud.setAudio(this.sound.isSoundOn, this.sound.isMusicOn);
@@ -118,6 +122,13 @@ export class Game {
     this.applySize();
 
     window.addEventListener('resize', () => this.onResize());
+    // Handy gesperrt, App oder Tab gewechselt: Spiel anhalten und Ton aus. Im Titel, in der Werft usw. nur den Ton,
+    // dort gibt es keine Pause; beim Zurückkommen läuft er wieder (außer im Pausenmenü)
+    document.addEventListener('visibilitychange', () => {
+      const hidden = document.visibilityState === 'hidden';
+      if (hidden && !this.paused && !this.session.blocksPause) this.setPaused(true);
+      else this.sound.setPaused(hidden || this.paused);
+    });
     // Hinweis beim Verbinden oder Trennen eines Controllers
     this.input.onPadChange = (connected, slot, id) => {
       const name = id.replace(/\(.*?\)/g, '').trim().slice(0, 32).toUpperCase();
@@ -150,6 +161,12 @@ export class Game {
         this.input.press(code);
       });
     }
+    // Vorspann und Abspann: Antippen oder Klicken blättert weiter, der Knopf überspringt
+    document.getElementById('story-skip')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.input.press('Escape');
+    });
+    document.getElementById('story')?.addEventListener('click', () => this.input.press('Enter'));
     // Credits: Antippen irgendwo (außer auf den Lizenz-Link) schließt sie
     document.getElementById('credits')?.addEventListener('click', (e) => {
       if (document.body.classList.contains('touch') && !(e.target as Element).closest('a')) this.input.press('Escape');
@@ -292,7 +309,10 @@ export class Game {
     const canvas = this.renderer.domElement;
     let scale = 1;
     if (GFX.smooth) {
-      const ratio = Math.min(window.devicePixelRatio, 2) * this.quality.scale;
+      // Touch-Geräte: höchstens TOUCH_PIXELS Bildpunkte, sonst rechnen große Tablets ein Vielfaches eines Handys
+      const area = window.innerWidth * window.innerHeight;
+      const budget = isTouchDevice() ? Math.sqrt(TOUCH_PIXELS / area) : Infinity;
+      const ratio = Math.min(window.devicePixelRatio, 2, budget) * this.quality.scale;
       this.renderer.setPixelRatio(ratio);
       this.renderer.setSize(window.innerWidth, window.innerHeight, false);
       this.composer.setPixelRatio(ratio);
@@ -323,7 +343,8 @@ export class Game {
   private showFps(): void {
     if (!this.fpsEl) return;
     const mode = GFX.smooth ? `smooth ${Math.round(this.quality.scale * 100)} %` : 'retro';
-    this.fpsEl.textContent = `${Math.round(this.quality.fps)} fps · ${mode}`;
+    const { width, height } = this.renderer.domElement;
+    this.fpsEl.textContent = `${Math.round(this.quality.fps)} fps · ${mode} · ${width}×${height}`;
   }
 
   /** Beschriftung des Grafik-Knopfs im Pausenmenü (Touch). */

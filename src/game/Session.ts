@@ -31,7 +31,7 @@ import { TRACER_ROWS, TERRAN_PALETTE } from '../gfx/terranArt';
 import { BulletPool, steer, sweptDistanceSq } from '../entities/Bullets';
 import { Enemies, type Enemy, type EnemyOutput, type ShotStyle } from '../entities/Enemies';
 import { Pickups } from '../entities/Pickups';
-import { Player } from '../entities/Player';
+import { Player, START_Y } from '../entities/Player';
 import { SHIP_PALETTE, SHIP_PALETTE_P2 } from '../gfx/sprites';
 import { PowerUps, randomPowerUp } from '../entities/PowerUps';
 import { beamDistanceSq, Beams } from '../fx/Beams';
@@ -45,6 +45,8 @@ import type { Hud } from '../ui/Hud';
 import { Shop, type BuyResult } from '../ui/Shop';
 import { Title } from '../ui/Title';
 import { SaveMenu } from '../ui/SaveMenu';
+import { Story, type Scene } from '../ui/Story';
+import { introSteps, outroSteps, SCENE_TIME } from '../ui/storyText';
 import { writeSlot, type SaveData } from './SaveGame';
 import { DIFFICULTIES, difficultyIndex, loadDifficulty, saveDifficulty } from './Difficulty';
 import { Upgrades, UPGRADES, type UpgradeDef, type UpgradeId } from './Upgrades';
@@ -62,9 +64,13 @@ export interface SessionHooks {
   shake(amount: number): void;
   /** Ein neuer Sektor beginnt (Nebelfarben). */
   sector(index: number): void;
+  /** Erde im Vorspann/Abspann: Oberkante auf der Spielebene bei y = top, null = ausblenden. */
+  home(top: number | null): void;
 }
 
 const BULLET_DAMAGE = 1;
+/** Staub beim Aufsetzen auf der Erde. */
+const DUST_COLOR = new THREE.Color(0xc9b48a);
 const RAM_DAMAGE = 6;
 const ENEMY_BULLET_RADIUS = 0.3;
 const PLAYER_BULLET_RADIUS = 0.25;
@@ -76,7 +82,7 @@ const MEMBRANE_SPARK = new THREE.Color(0x6ad88a);
 /** Punkte statt Reparatur, wenn die Hülle schon voll ist. */
 const REPAIR_BONUS = 500;
 
-type State = 'title' | 'playing' | 'dying' | 'gameover';
+type State = 'title' | 'story' | 'playing' | 'dying' | 'gameover';
 
 /** Sekunden bis ein abgeschossener Spieler im Koop zurückkehrt. */
 const RESPAWN_TIME = 10;
@@ -119,6 +125,15 @@ export class Session {
   private readonly title: Title;
   private readonly saveMenu: SaveMenu;
   private creditsOpen = false;
+  /** Vorspann und Abspann. */
+  private readonly story: Story;
+  /** Countdown bis zum Abspann nach dem letzten Endgegner (null = keiner geplant). */
+  private outroTimer: number | null = null;
+  /** Szene, die zuletzt gezeigt wurde, und wo die Schiffe zu ihrem Beginn standen. */
+  private sceneName: Scene | null = null;
+  private sceneFrom: { x: number; y: number }[] = [];
+  /** Landung: Staubwolke schon aufgewirbelt? */
+  private touchedDown = false;
   /** Gesetzt, wenn gerade alle Sektoren geschafft wurden: Name der neuen Stufe fürs Banner. */
   private pendingCampaign: string | null = null;
   /** Index in DIFFICULTIES. */
@@ -221,6 +236,7 @@ export class Session {
       },
       move: () => this.sound.shopMove(),
     });
+    this.story = new Story(() => this.sound.typeKey());
     this.saveMenu = new SaveMenu({
       save: (slot) => this.saveTo(slot),
       load: (data) => this.loadSave(data),
@@ -316,8 +332,14 @@ export class Session {
     this.title.hide();
     this.setPlayers(this.title.players);
     this.restart();
-    this.hud.showHint();
-    this.sound.waveStart();
+    const go = () => {
+      this.endStory();
+      this.hud.showHint();
+      this.hud.showBanner(this.players === 2 ? 'GUTEN FLUG, PILOTEN!' : 'GUTEN FLUG, PILOT!', '', false, 1500);
+      this.sound.waveStart();
+    };
+    if (this.bot) go();
+    else this.playStory(introSteps(this.players), go);
   }
 
   private get setting() {
@@ -338,7 +360,7 @@ export class Session {
 
   /** Pause ist im Titelbildschirm, in der Werft und nach Game Over gesperrt (dort hat Esc eine eigene Bedeutung). */
   get blocksPause(): boolean {
-    return this.shop.isOpen || this.saveMenu.isOpen || this.state === 'title' || this.state === 'gameover';
+    return this.shop.isOpen || this.saveMenu.isOpen || this.state === 'title' || this.state === 'story' || this.state === 'gameover';
   }
 
   /** Ist das Speicher-/Lademenü offen? (Es wird auch während der Pause bedient.) */
@@ -457,6 +479,9 @@ export class Session {
     this.saveMenu.hide();
     this.pendingCampaign = null;
     this.shopTimer = null;
+    this.outroTimer = null;
+    this.story.stop();
+    this.hooks.home(null);
     this.score = 0;
     this.gold = 0;
     for (const pl of this.pilots) pl.hull = this.maxHull;
@@ -468,7 +493,7 @@ export class Session {
   update(dt: number, input: Input): void {
     this.devStats.time += dt;
     // Musik-Intensität: ruhig im Titel, in Menüs und zwischen den Wellen, dichter je mehr Gegner da sind
-    const calm = this.state === 'title' || this.shop.isOpen || this.saveMenu.isOpen;
+    const calm = this.state === 'title' || this.state === 'story' || this.shop.isOpen || this.saveMenu.isOpen;
     const busy = this.boss?.active ? 1 : Math.min(1, this.enemies.aliveCount / 10);
     this.sound.setIntensity(calm ? 0.05 : busy, dt);
 
@@ -490,6 +515,12 @@ export class Session {
       this.title.handleInput(input);
       return;
     }
+    // Vorspann und Abspann: das Spielgeschehen ruht, nur Schiff und Erde bewegen sich
+    if (this.state === 'story') {
+      this.story.update(dt, input);
+      if (this.state === 'story') this.playScene(dt);
+      return;
+    }
     // In der Werft ruht das Spielgeschehen
     if (this.shop.isOpen && this.bot) {
       this.botShopping();
@@ -499,7 +530,10 @@ export class Session {
       this.shop.handleInput(input);
       return;
     }
-    if (this.shopTimer !== null && this.state === 'playing') {
+    if (this.outroTimer !== null && this.state === 'playing') {
+      this.outroTimer -= dt;
+      if (this.outroTimer <= 0) this.startOutro();
+    } else if (this.shopTimer !== null && this.state === 'playing') {
       this.shopTimer -= dt;
       if (this.shopTimer <= 0) this.openShop(input);
     }
@@ -541,7 +575,7 @@ export class Session {
               },
               dt,
             )
-          : (i === 0 && this.touchControls(input, p, ceiling)) || input.controlsFor(i, this.players);
+          : (i === 0 && this.touchControls(input, p, ceiling, dt)) || input.controlsFor(i, this.players);
       pl.weapons.permanentDrones = this.upgrades.drones;
       p.ceiling = ceiling;
       p.update(dt, controls, this.playerBullets, this.fx.engine, this.fx.sparks, !pl.weapons.laserActive);
@@ -750,6 +784,131 @@ export class Session {
   // Wellen, Sektoren, Endgegner
   // -------------------------------------------------------------------------
 
+  // -------------------------------------------------------------------------
+  // Vorspann und Abspann
+  // -------------------------------------------------------------------------
+
+  private playStory(steps: Parameters<Story['play']>[0], done: () => void): void {
+    this.state = 'story';
+    this.sceneName = null;
+    for (const pl of this.pilots) pl.weapons.stopLaser();
+    this.story.play(steps, done);
+  }
+
+  /** Abspann nach dem Weltenbrecher. Münzen im Bild werden gutgeschrieben, Kapseln und Schüsse verschwinden. */
+  private startOutro(): void {
+    this.outroTimer = null;
+    this.gold += this.pickups.collectAll();
+    this.powerUps.clear();
+    this.playerBullets.clear();
+    this.missiles.clear();
+    this.beams.clear();
+    this.refreshHud();
+    this.playStory(outroSteps({ players: this.players, score: this.score, difficulty: this.setting.name }), () => {
+      this.endStory();
+      // Die Werft öffnet gleich, bevor die nächste Runde beginnt
+      this.shopTimer = 0.2;
+    });
+  }
+
+  /** Zurück ins Spiel: Erde weg, Schiffe auf ihre Startplätze. */
+  private endStory(): void {
+    this.state = 'playing';
+    this.hooks.home(null);
+    for (const pl of this.activePilots) pl.ship.pose(0, pl.ship.startX, START_Y, 0.5, this.fx.engine);
+  }
+
+  /** Bewegt Schiffe und Erde passend zur Szene des Vorspanns oder Abspanns. */
+  private playScene(dt: number): void {
+    const { name, time } = this.story.scene;
+    const pilots = this.activePilots;
+    if (name !== this.sceneName) {
+      this.sceneName = name;
+      this.sceneFrom = pilots.map((pl) => ({ x: pl.ship.x, y: pl.ship.y }));
+      this.touchedDown = false;
+    }
+    const smooth = (t: number) => t * t * (3 - 2 * t);
+    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+    /** Oberkante der Erde, wenn das Schiff auf ihr steht, und die Höhe des gelandeten Schiffs. */
+    const ground = -FIELD.halfHeight + 7;
+    const parked = ground + 0.9;
+    const below = -FIELD.halfHeight - 3;
+    let earth: number | null = null;
+
+    pilots.forEach((pl, i) => {
+      const from = this.sceneFrom[i] ?? { x: pl.ship.x, y: pl.ship.y };
+      const home = pl.ship.startX;
+      let x = home;
+      let y = parked;
+      let thrust = 0;
+      if (name === 'parked' || name === 'landed') {
+        earth = ground;
+      } else if (name === 'space') {
+        const k = smooth(Math.min(1, time / 1.5));
+        x = lerp(from.x, home, k);
+        y = lerp(from.y, START_Y + 4, k) + Math.sin(time * 2) * 0.3 * k;
+        thrust = 0.5;
+      } else if (name === 'land') {
+        // Die Erde taucht von unten auf, das Schiff bremst mit dem Triebwerk und setzt auf
+        const k = smooth(Math.min(1, time / (SCENE_TIME.land * 0.8)));
+        earth = lerp(below, ground, smooth(Math.min(1, time / (SCENE_TIME.land * 0.6))));
+        x = lerp(from.x, home, k);
+        y = Math.max(lerp(from.y, parked, k), earth + 0.9);
+        thrust = k < 1 ? Math.max(0.3, 1 - k) : 0;
+        if (k >= 1 && !this.touchedDown) {
+          // Aufsetzen: Staub wirbelt zu beiden Seiten auf
+          this.touchedDown = true;
+          for (const p of pilots) {
+            for (let n = 0; n < 14; n++) {
+              const dir = n % 2 ? 1 : -1;
+              this.fx.sparks.emit(p.ship.startX, ground + 0.2, dir * randRange(2, 7), randRange(0, 2.5), randRange(0.4, 0.8), DUST_COLOR);
+            }
+          }
+          this.hooks.shake(0.3);
+        }
+      } else {
+        // Start: beim Vorspann mit Countdown, beim Abspann gleich los
+        const countdown = name === 'launch';
+        const liftoff = countdown ? 1.8 : 0.5;
+        if (i === 0) this.countdown(time, dt, countdown, liftoff);
+        if (time < liftoff) {
+          earth = ground;
+          const ignited = time > liftoff - 0.6;
+          thrust = ignited ? 0.3 : 0;
+          if (ignited) x += (Math.random() - 0.5) * 0.12;
+        } else {
+          const u = time - liftoff;
+          // Steigen, während die Erde unten aus dem Bild fällt, dann zurück auf die Startposition
+          const rise = smooth(Math.min(1, u / 1.6));
+          earth = ground - 16 * Math.min(1, u / 1.6) ** 2;
+          if (earth < below - 4) earth = null;
+          y = u < 1.6 ? lerp(parked, 3, rise) : lerp(3, START_Y, smooth(Math.min(1, (u - 1.6) / 1.1)));
+          thrust = u < 1.6 ? 1 : 0.5;
+        }
+      }
+      pl.ship.pose(dt, x, y, thrust, this.fx.engine);
+    });
+    this.hooks.home(earth);
+  }
+
+  /** Countdown-Banner 3, 2, 1 und Zündung (time: Sekunden seit Beginn der Startszene). */
+  private countdown(time: number, dt: number, numbers: boolean, liftoff: number): void {
+    const crossed = (at: number) => time >= at && time - dt < at;
+    if (numbers) {
+      for (const [at, label] of [[0.05, '3'], [0.65, '2'], [1.25, '1']] as const) {
+        if (crossed(at)) {
+          this.hud.showBanner(label, '', false, 600);
+          this.sound.tick(label === '1');
+        }
+      }
+    }
+    if (crossed(liftoff)) {
+      if (numbers) this.hud.showBanner('START!', '', false, 900);
+      this.sound.ignite();
+      this.hooks.shake(0.5);
+    }
+  }
+
   private onSectorStart(sector: number): void {
     this.pendingSector = sector;
     this.hooks.sector(sector);
@@ -860,6 +1019,8 @@ export class Session {
         this.sound.setMusic('normal');
         this.powerUps.spawn('repair', x - 4, y);
         this.powerUps.spawn(randomPowerUp('repair'), x + 4, y);
+        // Nach dem letzten Endgegner erst der Abspann, dann die Werft
+        if (this.waves.atFinalBoss && !this.bot) this.outroTimer = 3.5;
         this.waves.finishBoss();
         this.shopTimer = 3.5;
         this.refreshHud();
@@ -1127,7 +1288,7 @@ export class Session {
   }
 
   /** Touch-Steuerung (Handy) für Spieler 1, null wenn gerade kein Finger liegt. */
-  private touchControls(input: Input, p: Player, ceiling: number | null): Controls | null {
+  private touchControls(input: Input, p: Player, ceiling: number | null, dt: number): Controls | null {
     const maxY = FIELD.halfHeight - PLAYER.edgeMarginY;
     return (
       input.touch?.controls(p, {
@@ -1135,7 +1296,7 @@ export class Session {
         maxX: FIELD.halfWidth - 0.6,
         minY: -maxY,
         maxY: ceiling === null ? maxY : Math.min(maxY, ceiling),
-      }) ?? null
+      }, dt) ?? null
     );
   }
 

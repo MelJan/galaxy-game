@@ -2,11 +2,37 @@ import type { Controls } from './Input';
 
 /** Fingerweg × GAIN = Schiffsweg: kleine Bewegungen reichen, der Daumen muss nicht übers ganze Display. */
 const GAIN = 1.4;
-/** Wie entschlossen das Schiff dem Zielpunkt folgt (Steuerausschlag je Welt-Einheit Abstand). */
-const FOLLOW = 2.5;
-const DEADZONE = 0.04;
+
+/**
+ * Fingerfilter: bei ruhigem Finger Grenzfrequenz MIN_CUTOFF (Hz, glättet Zittern), je Pixel pro Sekunde
+ * Fingertempo kommt BETA hinzu (schnelle Bewegungen gehen fast ungefiltert durch).
+ */
+const MIN_CUTOFF = 2.5;
+const BETA = 0.04;
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+/**
+ * One-Euro-Filter (Casiez, Roussel, Vogel 2012): Tiefpass, dessen Grenzfrequenz mit der Geschwindigkeit steigt.
+ * Kleine Zitterbewegungen werden geglättet, echte Bewegungen kommen mit minimaler Verzögerung an.
+ */
+class OneEuro {
+  private value: number | null = null;
+  private speed = 0;
+
+  reset(): void {
+    this.value = null;
+    this.speed = 0;
+  }
+
+  filter(v: number, dt: number): number {
+    if (this.value === null || dt <= 0) return (this.value = v);
+    const alpha = (cutoff: number) => 1 / (1 + 1 / (2 * Math.PI * cutoff * dt));
+    this.speed += ((v - this.value) / dt - this.speed) * alpha(1);
+    this.value += (v - this.value) * alpha(MIN_CUTOFF + BETA * Math.abs(this.speed));
+    return this.value;
+  }
+}
 
 /** Läuft das Spiel auf einem Gerät mit Touchscreen als Hauptbedienung (Handy, Tablet)? */
 export const isTouchDevice = (): boolean => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
@@ -30,6 +56,8 @@ export class TouchDrag {
   private y = 0;
   /** Schiffsposition beim Aufsetzen des Fingers (wird am Rand mitgezogen). */
   private anchor: { x: number; y: number } | null = null;
+  private readonly filterX = new OneEuro();
+  private readonly filterY = new OneEuro();
   private readonly debug: HTMLElement | null = null;
   private readonly counts: Record<string, number> = {};
 
@@ -55,6 +83,8 @@ export class TouchDrag {
       this.startX = this.x = e.clientX;
       this.startY = this.y = e.clientY;
       this.anchor = null;
+      this.filterX.reset();
+      this.filterY.reset();
     });
     surface.addEventListener('pointermove', (e) => {
       if (e.pointerId !== this.finger) return;
@@ -90,32 +120,26 @@ export class TouchDrag {
   }
 
   /**
-   * Steuerung für ein Schiff an (x, y), das sich innerhalb der Grenzen bewegen darf. null, wenn kein Finger liegt.
+   * Steuerung für ein Schiff an (x, y), das sich innerhalb der Grenzen bewegen darf: Zielpunkt, dem es direkt folgt
+   * (siehe Player). Einmal pro Spielschritt aufrufen (dt in Sekunden, für den Fingerfilter). null, wenn kein Finger liegt.
    * Läuft der Zielpunkt über den Rand, wandert der Anker mit, damit die Rückbewegung sofort greift.
    */
-  controls(ship: { x: number; y: number }, bounds: { minX: number; maxX: number; minY: number; maxY: number }): Controls | null {
+  controls(ship: { x: number; y: number }, bounds: { minX: number; maxX: number; minY: number; maxY: number }, dt: number): Controls | null {
     if (this.finger === null) {
       this.showDebug('kein Finger');
       return null;
     }
     if (!this.anchor) this.anchor = { x: ship.x, y: ship.y };
-    let tx = this.anchor.x + (this.x - this.startX) * this.worldPerPx * GAIN;
-    let ty = this.anchor.y - (this.y - this.startY) * this.worldPerPx * GAIN;
+    const fx = this.filterX.filter(this.x, dt);
+    const fy = this.filterY.filter(this.y, dt);
+    let tx = this.anchor.x + (fx - this.startX) * this.worldPerPx * GAIN;
+    let ty = this.anchor.y - (fy - this.startY) * this.worldPerPx * GAIN;
     const cx = clamp(tx, bounds.minX, bounds.maxX);
     const cy = clamp(ty, bounds.minY, Math.max(bounds.minY, bounds.maxY));
     this.anchor.x += cx - tx;
     this.anchor.y += cy - ty;
-    tx = cx;
-    ty = cy;
-    const ax = (tx - ship.x) * FOLLOW;
-    const ay = (ty - ship.y) * FOLLOW;
-    const c = {
-      axisX: Math.abs(ax) < DEADZONE ? 0 : clamp(ax, -1, 1),
-      axisY: Math.abs(ay) < DEADZONE ? 0 : clamp(ay, -1, 1),
-      fire: true,
-    };
-    this.showDebug(`steuert x ${c.axisX.toFixed(2)} y ${c.axisY.toFixed(2)}`);
-    return c;
+    this.showDebug(`ziel x ${cx.toFixed(1)} y ${cy.toFixed(1)}`);
+    return { axisX: 0, axisY: 0, fire: true, moveTo: { x: cx, y: cy } };
   }
 
   private count(name: string): void {

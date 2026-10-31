@@ -764,6 +764,11 @@ export class WaveDirector {
     return `${s.name} · ${s.subtitle} — ${what}`;
   }
 
+  /** Läuft gerade der letzte Endgegner der Kampagne? */
+  get atFinalBoss(): boolean {
+    return this.bossRunning && this.index === ENTRIES.length - 1;
+  }
+
   /** Kommt als Nächstes ein Endgegner? */
   get nextIsBoss(): boolean {
     return ENTRIES[(this.index + 1) % ENTRIES.length].kind === 'boss';

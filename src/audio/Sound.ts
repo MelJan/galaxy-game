@@ -59,6 +59,8 @@ interface NoiseOptions extends Route {
   to?: number;
   q?: number;
   delay?: number;
+  /** Einschwingzeit; ohne setzt das Rauschen sofort mit voller Lautstärke ein. */
+  attack?: number;
 }
 
 /** Hall und Echo für einen Bus. */
@@ -298,8 +300,11 @@ export class Sound {
     if (o.q) f.Q.value = o.q;
     if (o.to) f.frequency.exponentialRampToValueAtTime(o.to, t + o.dur);
     const gain = ctx.createGain();
-    gain.gain.setValueAtTime(o.vol, t);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
+    if (o.attack) {
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(o.vol, t + o.attack);
+    } else gain.gain.setValueAtTime(o.vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(o.dur, (o.attack ?? 0) + 0.01));
     src.connect(f).connect(gain);
     this.route(gain, o);
     src.start(t, Math.random() * 0.5);
@@ -503,36 +508,47 @@ export class Sound {
     }
   }
 
+  /**
+   * Explosion je nach Material. Kleine Explosionen (normale Gegner) sind weich und leise: kein tiefer Schlag,
+   * der wie eine Pauke klingt, sondern ein gedämpftes Puffen mit kurzem Einschwingen. Je größer, desto mehr Wumms.
+   */
   explode(size: 1 | 2 | 3, material: Material = 'metal'): void {
-    if (!this.throttle(`explode-${material}-${size}`, 0.04)) return;
-    const dur = [0, 0.35, 0.6, 1.1][size];
+    if (!this.throttle(`explode-${material}-${size}`, size === 1 ? 0.07 : 0.05)) return;
+    const dur = [0, 0.4, 0.65, 1.1][size];
+    /** Anteil des tiefen Schlags und des Rauschens. */
+    const low = [0, 0.3, 0.75, 1][size];
+    const mid = [0, 0.65, 0.9, 1][size];
+    const attack = size === 1 ? 0.018 : 0.008;
+    /** Kleine Explosionen setzen tiefer und ohne steilen Sweep ein. */
+    const thump = size === 1 ? 85 : 140;
     if (material === 'void') {
       // Implosion: Sog nach innen, dann ein dumpfer Knall
-      this.noise({ dur: dur * 0.5, vol: 0.12 + size * 0.05, filter: 'bandpass', freq: 3000, to: 200, q: 2 });
-      this.tone({ type: 'sine', freq: vary(600), to: 50, dur: dur * 0.5, vol: 0.18 + size * 0.06 });
-      this.tone({ type: 'sine', freq: 70, to: 30, dur: dur, vol: 0.25 + size * 0.08, delay: dur * 0.45, reverb: 0.3 });
+      this.noise({ dur: dur * 0.5, vol: (0.12 + size * 0.05) * mid, filter: 'bandpass', freq: 3000, to: 200, q: 2, attack });
+      this.tone({ type: 'sine', freq: vary(600), to: 50, dur: dur * 0.5, vol: (0.18 + size * 0.06) * mid, attack });
+      this.tone({ type: 'sine', freq: 70, to: 30, dur: dur, vol: (0.25 + size * 0.08) * low, delay: dur * 0.45, reverb: 0.3, attack });
     } else if (material === 'slime') {
       // Platschen, dann aufsteigende Blasen
-      this.noise({ dur: dur * 0.8, vol: 0.18 + size * 0.06, filter: 'bandpass', freq: vary(1300), to: 220, q: 2 });
-      this.tone({ type: 'sine', freq: vary(90), to: 40, dur: dur * 0.7, vol: 0.22 + size * 0.07 });
+      this.noise({ dur: dur * 0.8, vol: (0.18 + size * 0.06) * mid, filter: 'bandpass', freq: vary(1300), to: 220, q: 2, attack });
+      this.tone({ type: 'sine', freq: vary(thump * 0.65), to: 40, dur: dur * 0.7, vol: (0.22 + size * 0.07) * low, attack });
       for (let i = 0; i < 2 + size * 2; i++) {
         const f = rnd(200, 500);
         this.tone({ type: 'sine', freq: f, to: f * 2.4, dur: 0.06, vol: 0.05, delay: rnd(0.04, dur) });
       }
     } else if (material === 'flesh') {
       // Platschen mit Blubbern
-      this.noise({ dur: dur * 0.9, vol: 0.2 + size * 0.07, filter: 'bandpass', freq: vary(1000, 0.2), to: 140, q: 1.5 });
-      this.tone({ type: 'sine', freq: vary(110), to: 35, dur: dur * 0.8, vol: 0.25 + size * 0.08 });
+      this.noise({ dur: dur * 0.9, vol: (0.2 + size * 0.07) * mid, filter: 'bandpass', freq: vary(1000, 0.2), to: 140, q: 1.5, attack });
+      this.tone({ type: 'sine', freq: vary(thump * 0.8), to: 35, dur: dur * 0.8, vol: (0.25 + size * 0.08) * low, attack });
       for (let i = 0; i < size + 1; i++) this.tone({ type: 'sine', freq: rnd(250, 500), to: rnd(80, 140), dur: 0.08, vol: 0.06, delay: rnd(0.03, dur * 0.6) });
       if (size >= 2) this.chitter(4, 2600, 0.025, 0.05);
     } else if (material === 'crystal') {
       // Glas zersplittert, dazu ein tiefer Schlag im Hall
-      this.noise({ dur: dur * 0.6, vol: 0.12 + size * 0.04, filter: 'highpass', freq: 3000, reverb: 0.3 });
-      this.tone({ type: 'sine', freq: vary(120), to: 40, dur: dur, vol: 0.22 + size * 0.08 });
+      this.noise({ dur: dur * 0.6, vol: (0.12 + size * 0.04) * mid, filter: 'highpass', freq: 3000, reverb: 0.3, attack });
+      this.tone({ type: 'sine', freq: vary(thump * 0.85), to: 40, dur: dur, vol: (0.22 + size * 0.08) * low, attack });
       for (let i = 0; i < 3 + size * 3; i++) this.bell(rnd(1800, 4200), rnd(0.15, 0.4), 0.02, { delay: rnd(0, dur * 0.5), ratio: 2.76, echo: 0.2 });
     } else {
-      this.noise({ dur, vol: 0.22 + size * 0.08, filter: 'lowpass', freq: vary(2400), to: 120 });
-      this.tone({ type: 'sine', freq: vary(140), to: 35, dur: dur * 0.9, vol: 0.25 + size * 0.1 });
+      // Gedämpftes Rauschen mit etwas Hall statt eines harten Knalls
+      this.noise({ dur, vol: (0.22 + size * 0.08) * mid, filter: 'lowpass', freq: vary(size === 1 ? 1600 : 2400), to: 120, attack, reverb: 0.15 });
+      this.tone({ type: 'sine', freq: vary(thump), to: 35, dur: dur * 0.9, vol: (0.25 + size * 0.1) * low, attack });
       // Scheppernde Trümmer
       for (let i = 0; i < size; i++) this.tone({ type: 'square', freq: rnd(900, 1800), to: rnd(400, 700), dur: 0.04, vol: 0.025, delay: rnd(0.05, dur * 0.7) });
     }
@@ -646,6 +662,12 @@ export class Sound {
 
   waveStart(): void {
     [523, 659, 784, 1047].forEach((f, i) => this.tone({ type: 'square', freq: f, dur: 0.1, vol: 0.05, delay: i * 0.08 }));
+  }
+
+  /** Leises Tippen im Vorspann und Abspann. */
+  typeKey(): void {
+    if (!this.throttle('typeKey', 0.04)) return;
+    this.tone({ type: 'square', freq: vary(1400, 0.08), dur: 0.015, vol: 0.015 });
   }
 
   gameOver(): void {

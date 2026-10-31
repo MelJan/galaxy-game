@@ -64,6 +64,11 @@ Im Dev-Server ist das laufende Spiel als `window.__game` erreichbar (für automa
 
 Zehn Sektoren mit eigenen Gegnern, Nebelfarben, Musik und Endgegner. Danach beginnt eine neue, härtere Stufe.
 
+**Vorspann und Abspann:** Nach der Wahl der Schwierigkeit erzählt der Vorspann die Geschichte, während das Schiff auf
+der Erde steht, dann folgen Countdown und Start. Nach dem Weltenbrecher kommen Epilog, Landung auf der Erde, rollende
+Credits und ein neuer Start. Enter/Antippen blättert weiter, Esc/„Überspringen“ überspringt. Texte und Mitwirkende
+stehen in `src/ui/storyText.ts`, die Bewegungen in `Session.playScene`.
+
 | Sektor | Gegner | Endgegner |
 |---|---|---|
 | 1 · Imperiale Grenze (Wellen 1–10) | Drohnen, Jäger, Kreuzer | **Mutterschiff** (Teile zerstören): 3 Kanonen mit Sinuswellen und 8 Begleitdrohnen, dann liegt der Fusionskern frei |
@@ -101,7 +106,7 @@ Sie kommen nach jeder geschafften Welle, von stärkeren Gegnern und von zerstör
 - `src/game/` – Spieldurchlauf (Kollisionen, Punkte, Hülle), Sektoren und Wellen, Zusatzwaffen
 - `src/audio/` – Effekte und Chiptune-Musik, komplett per Web Audio synthetisiert
 - `src/fx/` – Partikel, Explosionen, Laserstrahlen
-- `src/ui/` – HUD und Werft
+- `src/ui/` – HUD, Werft, Titel, Vorspann und Abspann
 
 Gameplay läuft auf der Ebene z = 0, der Hintergrund liegt in echter 3D-Tiefe dahinter.
 Ein Bildschirm-Pixel entspricht auf der Spielebene genau `PIXEL` Welt-Einheiten, Sprites rasten darauf ein.

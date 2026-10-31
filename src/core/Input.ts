@@ -7,6 +7,8 @@ export interface Controls {
   axisX: number;
   axisY: number;
   fire: boolean;
+  /** Touch: Zielpunkt, dem das Schiff direkt folgt (statt über axisX/axisY zu steuern). */
+  moveTo?: { x: number; y: number };
 }
 
 const DEADZONE = 0.22;

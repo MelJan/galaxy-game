@@ -23,7 +23,10 @@ const MUZZLE_COLOR = new THREE.Color(0x7ff0ff);
 const BANK_THRESHOLD = 0.3;
 /** Sekunden ohne Schaden nach einem Treffer. */
 const INVULNERABLE_TIME = 1.6;
-const START_Y = -FIELD.halfHeight + 6;
+/** Startposition (y) zu Beginn eines Durchlaufs. */
+export const START_Y = -FIELD.halfHeight + 6;
+/** Touch: höchstens so viel schneller als normal fliegt das Schiff dem Finger hinterher (damit es nicht springt). */
+const TOUCH_MAX_SPEED = 6;
 export const SHIELD_HITS = 3;
 export const SHIELD_TIME = 15;
 export const FAN_TIME = 15;
@@ -159,6 +162,23 @@ export class Player {
     return { x: x + this.frames[this.frame].guns[i] * PIXEL, y: y + SHIP_GUN_Y * PIXEL };
   }
 
+  /**
+   * Vorspann und Abspann: Schiff fest an (x, y) zeigen, ohne Steuerung und ohne zu schießen.
+   * thrust: 0 = Triebwerk aus (gelandet), ab 0.5 große Flamme.
+   */
+  pose(dt: number, x: number, y: number, thrust: number, engineFx: Particles): void {
+    this.animTime += dt;
+    this.alive = true;
+    this.invulnerable = 0;
+    this.setVisible(true);
+    this.position.set(x, y);
+    this.velocity.set(0, thrust >= 0.5 ? PLAYER.speed : 0);
+    this.frame = 0;
+    this.render(thrust > 0 ? engineFx : null);
+    if (thrust <= 0) for (const f of this.flames) f.visible = false;
+    this.velocity.set(0, 0);
+  }
+
   /** gunsEnabled = false, solange der Dauerlaser die normalen Kanonen ersetzt. */
   update(dt: number, input: Controls, bullets: BulletPool, engineFx: Particles, sparkFx: Particles, gunsEnabled = true): void {
     if (!this.alive) return;
@@ -183,12 +203,19 @@ export class Player {
   }
 
   private move(dt: number, input: Controls): void {
-    this.target.set(input.axisX, input.axisY);
-    if (this.target.lengthSq() > 1) this.target.normalize();
-    this.target.multiplyScalar(PLAYER.speed * this.stats.speedMul);
-    this.velocity.lerp(this.target, 1 - Math.exp(-PLAYER.accel * dt));
-
     const p = this.position;
+    if (input.moveTo) {
+      // Touch: noch in diesem Schritt am Zielpunkt sein (der Finger ist schon gefiltert, siehe TouchDrag)
+      this.target.set(input.moveTo.x - p.x, input.moveTo.y - p.y).divideScalar(Math.max(dt, 1e-4));
+      const max = PLAYER.speed * this.stats.speedMul * TOUCH_MAX_SPEED;
+      if (this.target.lengthSq() > max * max) this.target.setLength(max);
+      this.velocity.copy(this.target);
+    } else {
+      this.target.set(input.axisX, input.axisY);
+      if (this.target.lengthSq() > 1) this.target.normalize();
+      this.target.multiplyScalar(PLAYER.speed * this.stats.speedMul);
+      this.velocity.lerp(this.target, 1 - Math.exp(-PLAYER.accel * dt));
+    }
     p.x += this.velocity.x * dt;
     p.y += this.velocity.y * dt;
 
@@ -213,7 +240,8 @@ export class Player {
     this.frame = bank < -BANK_THRESHOLD ? 1 : bank > BANK_THRESHOLD ? 2 : 0;
   }
 
-  private render(engineFx: Particles): void {
+  /** engineFx = null: ohne Abgasteilchen. */
+  private render(engineFx: Particles | null): void {
     const frame = this.frames[this.frame];
     this.ship.setFrame(this.frame);
     this.ship.place(this.position.x, this.position.y);
@@ -237,6 +265,7 @@ export class Player {
       flame.mesh.position.set(sx + frame.engines[i] * PIXEL, flameY, -0.05);
     });
 
+    if (!engineFx) return;
     for (const ex of frame.engines) {
       engineFx.emit(
         sx + ex * PIXEL + (Math.random() - 0.5) * PIXEL * 2,
