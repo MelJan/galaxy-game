@@ -2,7 +2,10 @@
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#02030a" />
     <title>Galaxy Game</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="/src/style.css" />
@@ -30,15 +33,26 @@
       </div>
       <div id="banner" class="hidden"></div>
       <div id="hint">
-        WASD / Pfeiltasten: bewegen &middot; Leertaste: schießen &middot; P: Pause &middot; Controller: Stick, A, Start<br />
-        G: Grafik smooth/retro &middot; M: Musik &middot; N: Ton
+        <span class="key-only">
+          WASD / Pfeiltasten: bewegen &middot; Leertaste: schießen &middot; P: Pause &middot; Controller: Stick, A, Start<br />
+          G: Grafik smooth/retro &middot; M: Musik &middot; N: Ton
+        </span>
+        <span class="touch-only">Finger ziehen: fliegen &middot; solange du berührst, wird geschossen<br />II oben: Pause</span>
       </div>
-      <div id="pause" class="hidden">PAUSE<small>P / START: WEITER &middot; S / Y: SPEICHERN</small></div>
+      <button id="touch-pause" class="touch-btn touch-only hidden" aria-label="Pause">II</button>
+      <div id="pause" class="hidden">
+        PAUSE<small class="key-only">P / START: WEITER &middot; S / Y: SPEICHERN</small>
+        <div class="touch-only touch-row">
+          <button id="pause-resume" class="touch-btn">WEITER</button>
+          <button id="pause-save" class="touch-btn">SPEICHERN</button>
+        </div>
+      </div>
       <div id="saves" class="hidden">
         <div class="saves-panel">
           <div id="saves-title"></div>
           <div id="saves-list"></div>
           <div id="saves-hint"></div>
+          <button id="saves-back" class="touch-btn touch-only">ZURÜCK</button>
         </div>
       </div>
       <div id="title" class="hidden">
@@ -46,7 +60,8 @@
         <div id="title-players"></div>
         <div class="title-label">SCHWIERIGKEIT</div>
         <div id="title-list"></div>
-        <div class="title-hint">HOCH/RUNTER: SCHWIERIGKEIT &middot; LINKS/RECHTS: SPIELER &middot; ENTER / A: STARTEN</div>
+        <div class="title-hint key-only">HOCH/RUNTER: SCHWIERIGKEIT &middot; LINKS/RECHTS: SPIELER &middot; ENTER / A: STARTEN</div>
+        <div class="title-hint touch-only">SCHWIERIGKEIT ANTIPPEN ZUM STARTEN</div>
       </div>
       <div id="credits" class="hidden">
         <div class="saves-panel credits-panel">
@@ -62,7 +77,7 @@
             VOLLSTÄNDIGE LIZENZTEXTE:
             <a href="licenses/THIRD_PARTY_NOTICES.txt" target="_blank" rel="noopener">LICENSES/THIRD_PARTY_NOTICES.TXT</a>
           </p>
-          <div id="saves-hint">ESC / ENTER: ZURÜCK</div>
+          <div id="saves-hint"><span class="key-only">ESC / ENTER: ZURÜCK</span><span class="touch-only">ANTIPPEN: ZURÜCK</span></div>
         </div>
       </div>
       <div id="shop" class="hidden">
@@ -79,14 +94,18 @@
             <button id="shop-continue">WEITERFLIEGEN</button>
             <button id="shop-save">SPEICHERN</button>
           </div>
-          <div class="shop-hint">PFEILTASTEN: AUSWÄHLEN &middot; LEERTASTE: KAUFEN &middot; ESC: WEITER</div>
+          <div class="shop-hint key-only">PFEILTASTEN: AUSWÄHLEN &middot; LEERTASTE: KAUFEN &middot; ESC: WEITER</div>
         </div>
       </div>
       <div id="gameover" class="hidden">
         <div class="go-title">GAME OVER</div>
         <div>SCORE <b id="final-score">0</b></div>
-        <div class="go-hint">ENTER: NEUSTART</div>
-        <div class="go-sub">ESC: SCHWIERIGKEIT WÄHLEN</div>
+        <div class="go-hint key-only">ENTER: NEUSTART</div>
+        <div class="go-sub key-only">ESC: SCHWIERIGKEIT WÄHLEN</div>
+        <div class="touch-only touch-row">
+          <button id="go-restart" class="touch-btn">NEUSTART</button>
+          <button id="go-menu" class="touch-btn">SCHWIERIGKEIT</button>
+        </div>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

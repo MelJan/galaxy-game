@@ -1,3 +1,5 @@
+import { TouchDrag } from './Touch';
+
 const BLOCKED_KEYS = new Set(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 
 /** Steuerung eines Schiffs: Richtung (−1..1) und Feuern. */
@@ -40,6 +42,8 @@ export class Input {
   private readonly pressed = new Set<string>();
   private readonly pads = new Map<number, PadState>();
   private lastPoll = 0;
+  /** Touch-Steuerung (Handy), sobald das Spielfeld angemeldet ist. */
+  touch: TouchDrag | null = null;
   /** Wird aufgerufen, wenn ein Controller verbunden oder getrennt wird (Nummer ab 1, Name). */
   onPadChange: ((connected: boolean, slot: number, id: string) => void) | null = null;
 
@@ -60,6 +64,16 @@ export class Input {
       this.pads.delete(e.gamepad.index);
       this.onPadChange?.(false, slot, e.gamepad.id);
     });
+  }
+
+  /** Spielfeld für die Touch-Steuerung anmelden; onUse läuft bei jeder Berührung. */
+  attachTouch(surface: HTMLElement, onUse: () => void): void {
+    this.touch = new TouchDrag(surface, onUse);
+  }
+
+  /** Virtueller Tastendruck, z. B. von einem Bildschirm-Knopf (wirkt wie ein kurzer Druck auf die Taste). */
+  press(code: string): void {
+    this.pressed.add(code);
   }
 
   isDown(...codes: string[]): boolean {

@@ -7,6 +7,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { Sound } from './audio/Sound';
 import { CAMERA, FIELD, PIXEL, RENDER_HEIGHT } from './config';
 import { Input } from './core/Input';
+import { isTouchDevice } from './core/Touch';
 import { FIRE_RAMP } from './fx/explode';
 import { Particles } from './fx/Particles';
 import { Session } from './game/Session';
@@ -27,6 +28,7 @@ export class Game {
   private readonly smoothComposer: EffectComposer;
   private readonly timer = new THREE.Timer();
   private readonly input = new Input();
+  private readonly touchPause = document.getElementById('touch-pause')!;
 
   /** Alle Hintergrund-Ebenen. Wird gegen die Spielerbewegung verschoben, das ergibt die Parallaxe. */
   private readonly background = new THREE.Group();
@@ -62,6 +64,7 @@ export class Game {
     this.renderer.toneMapping = THREE.NoToneMapping;
     container.appendChild(this.renderer.domElement);
     loadGfxMode();
+    this.setupTouch();
 
     this.scene.background = new THREE.Color(0x02030a);
     this.camera = new THREE.PerspectiveCamera(CAMERA.fov, 1, 0.5, 2000);
@@ -113,6 +116,48 @@ export class Game {
     };
   }
 
+  /**
+   * Handy und Tablet: Ziehen auf dem Spielfeld steuert, Bildschirm-Knöpfe lösen virtuelle Tasten aus
+   * (Pause, Weiter, Speichern, Neustart, Zurück). Die Touch-Oberfläche erscheint bei Touch-Geräten sofort,
+   * sonst bei der ersten Berührung. Beim ersten Antippen geht das Spiel (wo erlaubt) in den Vollbildmodus.
+   */
+  private setupTouch(): void {
+    const enable = () => document.body.classList.add('touch');
+    if (isTouchDevice()) enable();
+    this.input.attachTouch(this.renderer.domElement, enable);
+    const keys: Record<string, string> = {
+      'touch-pause': 'KeyP',
+      'pause-resume': 'KeyP',
+      'pause-save': 'KeyS',
+      'go-restart': 'Enter',
+      'go-menu': 'Escape',
+      'saves-back': 'Escape',
+    };
+    for (const [id, code] of Object.entries(keys)) {
+      document.getElementById(id)?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.input.press(code);
+      });
+    }
+    // Credits: Antippen irgendwo (außer auf den Lizenz-Link) schließt sie
+    document.getElementById('credits')?.addEventListener('click', (e) => {
+      if (document.body.classList.contains('touch') && !(e.target as Element).closest('a')) this.input.press('Escape');
+    });
+    let triedFullscreen = false;
+    document.addEventListener(
+      'touchend',
+      () => {
+        if (triedFullscreen || !document.fullscreenEnabled || document.fullscreenElement) return;
+        triedFullscreen = true;
+        document.documentElement
+          .requestFullscreen({ navigationUI: 'hide' })
+          .then(() => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.('portrait'))
+          .catch(() => {});
+      },
+      { capture: true },
+    );
+  }
+
   private createComposer(samples: number): EffectComposer {
     const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, samples });
     const composer = new EffectComposer(this.renderer, target);
@@ -145,6 +190,7 @@ export class Game {
       if (this.session.menuOpen) this.session.handleMenus(this.input);
       else if (this.input.wasPressed('KeyS') || this.input.wasPressed('PadY')) this.session.openSaveMenu();
     }
+    this.touchPause.classList.toggle('hidden', this.paused || this.session.blocksPause);
     if (this.input.wasPressed('KeyG')) this.toggleGfxMode();
     if (this.input.wasPressed('KeyM')) this.sound.toggleMusic();
     if (this.input.wasPressed('KeyN')) this.sound.toggleSound();
@@ -193,6 +239,7 @@ export class Game {
     this.paused = paused;
     // Liegengebliebene Tastendrücke (z. B. S vom Fliegen) nicht ins Pausenmenü mitnehmen
     this.input.clearPressed();
+    this.input.touch?.release();
     this.sound.setPaused(paused);
     this.pauseEl.classList.toggle('hidden', !paused);
   }
@@ -220,6 +267,8 @@ export class Game {
     this.camera.updateProjectionMatrix();
 
     FIELD.halfWidth = halfH * this.camera.aspect - CAMERA.marginX;
+    // Touch: Fingerweg in Welt-Einheiten (die Bildhöhe zeigt 2 · halfH)
+    if (this.input.touch) this.input.touch.worldPerPx = (2 * halfH) / window.innerHeight;
   }
 
   /** Renderer-Auflösung je nach Grafikmodus: Spiel-Pixel (Retro) oder volle Bildschirmauflösung (Smooth). */

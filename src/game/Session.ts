@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Sound } from '../audio/Sound';
 import { FIELD, PLAYER } from '../config';
-import type { Input } from '../core/Input';
+import type { Controls, Input } from '../core/Input';
 import { nearest, randRange } from '../core/view';
 import { DEV } from '../dev/flags';
 import type { BossBase, BossEvents } from '../entities/bosses/BossBase';
@@ -541,7 +541,7 @@ export class Session {
               },
               dt,
             )
-          : input.controlsFor(i, this.players);
+          : (i === 0 && this.touchControls(input, p, ceiling)) || input.controlsFor(i, this.players);
       pl.weapons.permanentDrones = this.upgrades.drones;
       p.ceiling = ceiling;
       p.update(dt, controls, this.playerBullets, this.fx.engine, this.fx.sparks, !pl.weapons.laserActive);
@@ -1124,6 +1124,19 @@ export class Session {
     this.shop.show();
     this.sound.shopOpen();
     this.refreshHud();
+  }
+
+  /** Touch-Steuerung (Handy) für Spieler 1, null wenn gerade kein Finger liegt. */
+  private touchControls(input: Input, p: Player, ceiling: number | null): Controls | null {
+    const maxY = FIELD.halfHeight - PLAYER.edgeMarginY;
+    return (
+      input.touch?.controls(p, {
+        minX: -FIELD.halfWidth + 0.6,
+        maxX: FIELD.halfWidth - 0.6,
+        minY: -maxY,
+        maxY: ceiling === null ? maxY : Math.min(maxY, ceiling),
+      }) ?? null
+    );
   }
 
   /** Autopilot in der Werft: reparieren, dann der Reihe nach Verbesserungen, solange das Gold reicht. */
