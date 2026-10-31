@@ -106,7 +106,7 @@ export class Sound {
   private sectionStarted = -1;
   private intensity = 0.5;
   private musicFilter!: BiquadFilterNode;
-  private laserNodes: { oscs: OscillatorNode[]; gain: GainNode } | null = null;
+  private laserNodes: { sources: AudioScheduledSourceNode[]; gain: GainNode } | null = null;
   private coinCombo = 0;
   private lastCoin = 0;
 
@@ -387,47 +387,38 @@ export class Sound {
 
   /** Dauerlaser an/aus: brummender Dauerton, solange er feuert. */
   /**
-   * Dauerton des Lasers: weiches, leises Summen (Dreieck und Sinus, leicht verstimmt, stark gedämpft) mit sanftem
-   * Pulsieren der Lautstärke. Er läuft lange mit, deshalb nichts Schrilles und keine schnelle Tonhöhen-Wackelei.
+   * Laser: beim Einschalten ein kurzer Zapp, danach nur leises Knistern aus gefiltertem Rauschen, dessen Klangfarbe
+   * langsam wandert. Bewusst ohne Tonhöhe: ein gehaltener Ton klingt auf Dauer wie eine Hupe.
    */
   setLaser(on: boolean): void {
     const ctx = this.ctx;
     if (!ctx) return;
     if (on && !this.laserNodes) {
+      this.tone({ type: 'sine', freq: 1800, to: 500, dur: 0.12, vol: 0.04 });
       const gain = ctx.createGain();
       gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.018, ctx.currentTime + 0.12);
+      gain.gain.exponentialRampToValueAtTime(0.04, ctx.currentTime + 0.15);
+      const noise = ctx.createBufferSource();
+      noise.buffer = this.noiseBuffer;
+      noise.loop = true;
       const filter = ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.value = 1100;
-      // Sanftes Pulsieren: die Lautstärke schwankt um etwa ein Viertel
-      const pulse = ctx.createGain();
-      filter.connect(pulse).connect(gain).connect(this.sfx);
-      const oscs = (
-        [
-          ['triangle', 220],
-          ['sine', 441.5],
-          ['sine', 329.6],
-        ] as const
-      ).map(([type, freq]) => {
-        const o = ctx.createOscillator();
-        o.type = type;
-        o.frequency.value = freq;
-        o.connect(filter);
-        o.start();
-        return o;
-      });
+      filter.type = 'bandpass';
+      filter.frequency.value = 3200;
+      filter.Q.value = 0.9;
+      noise.connect(filter).connect(gain).connect(this.sfx);
+      // Klangfarbe wandert langsam zwischen etwa 2400 und 4000 Hz
       const lfo = ctx.createOscillator();
       const depth = ctx.createGain();
-      lfo.frequency.value = 5;
-      depth.gain.value = 0.25;
-      lfo.connect(depth).connect(pulse.gain);
+      lfo.frequency.value = 0.7;
+      depth.gain.value = 800;
+      lfo.connect(depth).connect(filter.frequency);
+      noise.start();
       lfo.start();
-      this.laserNodes = { oscs: [...oscs, lfo], gain };
+      this.laserNodes = { sources: [noise, lfo], gain };
     } else if (!on && this.laserNodes) {
-      const { oscs, gain } = this.laserNodes;
+      const { sources, gain } = this.laserNodes;
       gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.03);
-      for (const o of oscs) o.stop(ctx.currentTime + 0.15);
+      for (const src of sources) src.stop(ctx.currentTime + 0.15);
       this.laserNodes = null;
     }
   }
